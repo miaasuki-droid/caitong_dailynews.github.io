@@ -939,3 +939,203 @@ footer {
     min-height: 58px;
   }
 }
+
+
+/* ===== v2.2：所有设备均使用底部折叠提交栏 ===== */
+
+body {
+  padding-bottom: 86px;
+}
+
+.selection-workbench {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  z-index: 1000;
+  width: min(1080px, calc(100% - 40px));
+  margin: 0;
+  padding: 0;
+  display: block;
+  overflow: hidden;
+  transform: translateX(-50%);
+  border: 1px solid #d9dce1;
+  border-radius: 14px;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 12px 34px rgba(20,24,31,.18);
+  backdrop-filter: blur(12px);
+}
+
+.selection-drawer-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 18px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  background: #202329;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drawer-arrow {
+  display: inline-block;
+  font-size: 20px;
+  line-height: 1;
+  transform: rotate(180deg);
+  transition: transform 180ms ease;
+}
+
+.selection-workbench.collapsed .drawer-arrow {
+  transform: rotate(0deg);
+}
+
+.selection-workbench-body {
+  display: grid;
+  grid-template-columns: minmax(150px, .8fr) minmax(310px, 1.3fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 16px 18px 18px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.selection-workbench.collapsed .selection-workbench-body {
+  display: none;
+}
+
+.selection-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.primary-action {
+  min-width: 180px;
+  min-height: 54px;
+  padding: 0 22px;
+  border-radius: 11px;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.secondary-button {
+  min-height: 54px;
+  padding: 0 17px;
+  border-radius: 11px;
+  font-size: 14px;
+}
+
+@media (max-width: 920px) {
+  .selection-workbench-body {
+    grid-template-columns: 1fr 1.4fr;
+  }
+
+  .selection-actions {
+    grid-column: 1 / -1;
+  }
+
+  .selection-actions > button {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 780px) {
+  body {
+    padding-bottom: 78px;
+  }
+
+  .selection-workbench {
+    left: 12px;
+    right: 12px;
+    bottom: 10px;
+    width: auto;
+    transform: none;
+  }
+
+  .selection-drawer-toggle {
+    min-height: 54px;
+    padding: 0 13px;
+    font-size: 13px;
+  }
+
+  .selection-workbench-body {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
+    max-height: 56vh;
+  }
+
+  .selection-actions {
+    grid-column: auto;
+    display: grid;
+    grid-template-columns: .8fr 1.6fr;
+  }
+
+  .edition-toggle {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .edition-button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .primary-action,
+  .secondary-button {
+    min-height: 58px;
+  }
+}
+
+@media (max-width: 480px) {
+  .selection-workbench {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .selection-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .primary-action,
+  .secondary-button {
+    min-height: 60px;
+  }
+}
+
+
+/* ===== v2.3：折叠提交栏改为顶部固定 ===== */
+
+body {
+  padding-bottom: 0 !important;
+}
+
+.selection-workbench {
+  top: 12px !important;
+  bottom: auto !important;
+}
+
+@media (max-width: 780px) {
+  body {
+    padding-bottom: 0 !important;
+  }
+
+  .selection-workbench {
+    top: 8px !important;
+    bottom: auto !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .selection-workbench {
+    top: 6px !important;
+    bottom: auto !important;
+  }
+}
