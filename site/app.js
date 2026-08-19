@@ -1,6 +1,5 @@
 const state = {
   data: null,
-  filter: "all",
   query: "",
   selections: {},
   edition: null,
@@ -13,12 +12,7 @@ const els = {
   errorState: document.getElementById("errorState"),
   errorText: document.getElementById("errorText"),
   statusText: document.getElementById("statusText"),
-  dateText: document.getElementById("dateText"),
   updatedText: document.getElementById("updatedText"),
-  totalCount: document.getElementById("totalCount"),
-  importantCount: document.getElementById("importantCount"),
-  criticalCount: document.getElementById("criticalCount"),
-  resultCount: document.getElementById("resultCount"),
   searchInput: document.getElementById("searchInput"),
   selectedCount: document.getElementById("selectedCount"),
   selectedBreakdown: document.getElementById("selectedBreakdown"),
@@ -29,10 +23,6 @@ const els = {
   eveningButton: document.getElementById("eveningButton"),
   clearSelectionButton: document.getElementById("clearSelectionButton"),
   generateReportButton: document.getElementById("generateReportButton"),
-  reportPanel: document.getElementById("reportPanel"),
-  reportHeadingText: document.getElementById("reportHeadingText"),
-  reportText: document.getElementById("reportText"),
-  copyReportButton: document.getElementById("copyReportButton"),
 };
 
 function escapeHtml(value = "") {
@@ -52,22 +42,13 @@ function safeUrl(value = "") {
   return "#";
 }
 
-function formatDate(dateString) {
-  if (!dateString) return "—";
-  const [year, month, day] = dateString.split("-").map(Number);
-  const d = new Date(Date.UTC(year, month - 1, day));
-  const weekday = new Intl.DateTimeFormat("zh-CN", {
-    weekday: "long",
-    timeZone: "UTC",
-  }).format(d);
-  return `${year}年${month}月${day}日 · ${weekday}`;
-}
-
 function formatUpdated(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -92,10 +73,20 @@ function storageKey() {
   return `wscn-report-selections:${state.data?.date || "unknown"}`;
 }
 
+function editionStorageKey() {
+  return `wscn-report-edition:${state.data?.date || "unknown"}`;
+}
+
 function loadSelections() {
   try {
     const raw = localStorage.getItem(storageKey());
     state.selections = raw ? JSON.parse(raw) : {};
+
+    const savedEdition = localStorage.getItem(editionStorageKey());
+    if (savedEdition === "morning" || savedEdition === "evening") {
+      state.edition = savedEdition;
+      state.editionManuallySet = true;
+    }
   } catch (_) {
     state.selections = {};
   }
@@ -104,6 +95,7 @@ function loadSelections() {
 function saveSelections() {
   try {
     localStorage.setItem(storageKey(), JSON.stringify(state.selections));
+    if (state.edition) localStorage.setItem(editionStorageKey(), state.edition);
   } catch (_) {}
 }
 
@@ -112,18 +104,12 @@ function getVisibleItems() {
   const q = state.query.trim().toLowerCase();
 
   return state.data.items.filter((item) => {
-    if (state.filter === "important" && Number(item.score || 1) < 2) return false;
-    if (state.filter === "critical" && Number(item.score || 1) < 3) return false;
-
-    if (q) {
-      const text = [
-        item.content,
-        item.title,
-        item.article?.title,
-      ].filter(Boolean).join(" ").toLowerCase();
-      if (!text.includes(q)) return false;
-    }
-    return true;
+    if (!q) return true;
+    return [item.content, item.title, item.article?.title]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
   });
 }
 
@@ -157,20 +143,8 @@ function itemHtml(item) {
             ${article}
           </div>
           <div class="classification" aria-label="加入报告">
-            <button
-              class="classify-btn domestic ${selected === "domestic" ? "selected" : ""}"
-              type="button"
-              data-news-id="${escapeHtml(String(item.id))}"
-              data-category="domestic"
-              aria-pressed="${selected === "domestic"}"
-            >国内</button>
-            <button
-              class="classify-btn foreign ${selected === "foreign" ? "selected" : ""}"
-              type="button"
-              data-news-id="${escapeHtml(String(item.id))}"
-              data-category="foreign"
-              aria-pressed="${selected === "foreign"}"
-            >国外</button>
+            <button class="classify-btn domestic ${selected === "domestic" ? "selected" : ""}" type="button" data-news-id="${escapeHtml(String(item.id))}" data-category="domestic">国内</button>
+            <button class="classify-btn foreign ${selected === "foreign" ? "selected" : ""}" type="button" data-news-id="${escapeHtml(String(item.id))}" data-category="foreign">国外</button>
           </div>
         </div>
       </div>
@@ -190,15 +164,13 @@ function renderEdition() {
   if (!state.edition) state.edition = getDefaultEdition();
   els.morningButton.classList.toggle("active", state.edition === "morning");
   els.eveningButton.classList.toggle("active", state.edition === "evening");
-  els.morningButton.setAttribute("aria-pressed", state.edition === "morning");
-  els.eveningButton.setAttribute("aria-pressed", state.edition === "evening");
 }
 
 function renderSelectionStatus() {
   const counts = selectionCounts();
   els.selectedCount.textContent = `已选 ${counts.total} 条`;
   els.selectedBreakdown.textContent = `国内 ${counts.domestic} · 国外 ${counts.foreign}`;
-  els.drawerSummary.textContent = counts.total > 0
+  els.drawerSummary.textContent = counts.total
     ? `已选 ${counts.total} 条 · 国内 ${counts.domestic} / 国外 ${counts.foreign} · 提交`
     : "已选 0 条 · 提交";
   els.generateReportButton.disabled = counts.total === 0;
@@ -208,122 +180,35 @@ function renderSelectionStatus() {
 
 function render() {
   if (!state.data) return;
-
-  const items = state.data.items || [];
   const visible = getVisibleItems();
-  const important = items.filter((x) => Number(x.score || 1) >= 2).length;
-  const critical = items.filter((x) => Number(x.score || 1) >= 3).length;
 
-  els.dateText.textContent = formatDate(state.data.date);
   els.updatedText.textContent = formatUpdated(state.data.generated_at);
-  els.totalCount.textContent = items.length;
-  els.importantCount.textContent = important;
-  els.criticalCount.textContent = critical;
-  els.resultCount.textContent = `当前显示 ${visible.length} / ${items.length} 条`;
-
   els.timeline.innerHTML = visible.map(itemHtml).join("");
-  els.emptyState.hidden = visible.length !== 0 || items.length === 0;
+  els.emptyState.hidden = visible.length !== 0;
   els.errorState.hidden = true;
-  els.statusText.textContent = state.data.generated_at
-    ? `已同步 · ${formatUpdated(state.data.generated_at)}`
-    : "已读取";
+  els.statusText.textContent = state.data.generated_at ? "已同步" : "已读取";
 
   renderSelectionStatus();
 }
 
-function reportItemText(item) {
-  const content = String(item.content || "").trim();
-  const title = String(item.title || "").trim();
-
-  if (!content && title) return `【${title}】`;
-  if (!title) return content;
-  if (content.startsWith("【") || content.includes(title)) return content;
-  return `【${title}】 ${content}`;
-}
-
-function getSelectedItemsByCategory(category) {
-  if (!state.data?.items) return [];
-  return state.data.items.filter(
-    (item) => state.selections[String(item.id)] === category
-  );
-}
-
-function buildReport() {
-  const domestic = getSelectedItemsByCategory("domestic");
-  const foreign = getSelectedItemsByCategory("foreign");
-
-  const [year, month, day] = (state.data?.date || "").split("-").map(Number);
-  const editionText = state.edition === "evening" ? "晚报" : "早报";
-
-  const lines = [];
-  lines.push(`${month}月${day}日利率${editionText} 重要事件回顾（财通固收·隋修平团队）`);
-  lines.push("");
-  lines.push("国内新闻：");
-  lines.push("");
-
-  let number = 1;
-
-  for (const item of domestic) {
-    lines.push(`（${number}）${reportItemText(item)}`);
-    lines.push("");
-    number += 1;
-  }
-
-  lines.push("国外新闻：");
-  lines.push("");
-
-  for (const item of foreign) {
-    lines.push(`（${number}）${reportItemText(item)}`);
-    lines.push("");
-    number += 1;
-  }
-
-  lines.push("资料来源：华尔街见闻，财通证券研究所");
-  lines.push("免责声明：信息来自公开信息整理");
-
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-async function copyText(text, button, successLabel) {
-  if (!text) return;
-
-  try {
-    await navigator.clipboard.writeText(text);
-    const old = button.textContent;
-    button.textContent = successLabel;
-    setTimeout(() => { button.textContent = old; }, 1500);
-  } catch (_) {
-    window.prompt("复制以下内容：", text);
-  }
-}
-
-async function loadData({ silent = false } = {}) {
+async function loadData() {
   try {
     const res = await fetch(`./data/latest.json?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-
     if (data.error) throw new Error(data.error);
 
     const previousDate = state.data?.date;
-    const previousGeneratedAt = state.data?.generated_at;
     state.data = data;
 
-    if (!state.editionManuallySet) {
-      state.edition = getDefaultEdition();
-    }
-
     if (previousDate !== data.date) {
+      state.edition = getDefaultEdition();
+      state.editionManuallySet = false;
       loadSelections();
-      els.reportPanel.hidden = true;
-      els.reportText.value = "";
     }
 
+    if (!state.edition) state.edition = getDefaultEdition();
     render();
-
-    if (!silent || previousGeneratedAt !== data.generated_at) {
-      document.title = `${data.date || "今日"} · 全球快讯`;
-    }
   } catch (err) {
     if (!state.data) {
       els.timeline.innerHTML = "";
@@ -338,15 +223,6 @@ async function loadData({ silent = false } = {}) {
 els.searchInput.addEventListener("input", (e) => {
   state.query = e.target.value;
   render();
-});
-
-document.querySelectorAll(".filter").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll(".filter").forEach((x) => x.classList.remove("active"));
-    button.classList.add("active");
-    state.filter = button.dataset.filter;
-    render();
-  });
 });
 
 els.timeline.addEventListener("click", (event) => {
@@ -375,6 +251,7 @@ els.selectionDrawerToggle.addEventListener("click", () => {
   button.addEventListener("click", () => {
     state.edition = button.dataset.edition;
     state.editionManuallySet = true;
+    saveSelections();
     renderEdition();
   });
 });
@@ -383,30 +260,13 @@ els.clearSelectionButton.addEventListener("click", () => {
   state.selections = {};
   saveSelections();
   render();
-  els.reportPanel.hidden = true;
-  els.reportText.value = "";
 });
 
 els.generateReportButton.addEventListener("click", () => {
-  const report = buildReport();
-  els.reportText.value = report;
-  const label = state.edition === "evening" ? "晚报" : "早报";
-  els.reportHeadingText.textContent = `${label} · ${selectionCounts().total} 条新闻`;
-  els.reportPanel.hidden = false;
-
-  if (window.matchMedia("(max-width: 780px)").matches) {
-    els.selectionWorkbench.classList.add("collapsed");
-    els.selectionDrawerToggle.setAttribute("aria-expanded", "false");
-  }
-
-  requestAnimationFrame(() => {
-    els.reportPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-});
-
-els.copyReportButton.addEventListener("click", () => {
-  copyText(els.reportText.value, els.copyReportButton, "已复制");
+  if (selectionCounts().total === 0) return;
+  saveSelections();
+  window.location.href = "./review.html";
 });
 
 loadData();
-setInterval(() => loadData({ silent: true }), 60_000);
+setInterval(loadData, 60_000);

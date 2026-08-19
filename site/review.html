@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>整理早晚报</title>
+  <link rel="stylesheet" href="./styles.css?v=300" />
+</head>
+<body class="review-body">
+  <header class="review-topbar">
+    <div class="review-topbar-inner">
+      <a class="back-link" href="./index.html">← 返回选新闻</a>
+      <div>
+        <p class="eyebrow dark-eyebrow">REPORT BUILDER</p>
+        <h1 class="review-title">整理早晚报</h1>
+      </div>
+      <div class="review-header-actions">
+        <button id="newDomesticGroupButton" class="secondary-button">+ 国内组</button>
+        <button id="newForeignGroupButton" class="secondary-button">+ 国外组</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="review-page">
+    <section class="review-help">
+      <div>
+        <strong id="reviewCount">—</strong>
+        <span>拖动左侧手柄排序；新闻可拖进组或跨组移动；不需要的直接删除。</span>
+      </div>
+      <div class="review-actions-top">
+        <button id="resetButton" class="secondary-button">恢复初始顺序</button>
+        <button id="previewButton" class="action-button primary-action">生成文本</button>
+      </div>
+    </section>
+
+    <section class="review-columns">
+      <div class="review-column">
+        <div class="column-title"><h2>国内新闻</h2><span id="domesticCount">0 条</span></div>
+        <div id="domesticBoard" class="board" data-category="domestic"></div>
+      </div>
+      <div class="review-column">
+        <div class="column-title"><h2>国外新闻</h2><span id="foreignCount">0 条</span></div>
+        <div id="foreignBoard" class="board" data-category="foreign"></div>
+      </div>
+    </section>
+
+    <section id="reportPanel" class="report-panel review-report-panel" hidden>
+      <div class="report-heading">
+        <div>
+          <span class="label">最终文本</span>
+          <h2 id="reportHeadingText">早晚报</h2>
+        </div>
+        <button id="copyReportButton" class="action-button" type="button">一键复制</button>
+      </div>
+      <textarea id="reportText" class="report-text" spellcheck="false"></textarea>
+      <p class="report-hint">组标题使用（数字），组内新闻使用带圈序号；同一条新闻内部允许换行，但条目之间不插空行。</p>
+    </section>
+
+    <section id="reviewError" class="error-state" hidden>
+      <h2>没有可整理的新闻</h2>
+      <p>请返回上一页至少选择一条新闻。</p>
+    </section>
+  </main>
+
+  <script src="./review.js?v=300"></script>
+</body>
+</html>
