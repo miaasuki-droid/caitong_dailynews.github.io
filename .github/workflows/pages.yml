@@ -5,8 +5,14 @@ on:
     branches: ["main"]
   workflow_dispatch:
   schedule:
-    # 每 10 分钟执行一次；刻意避开整点，降低 GitHub Actions 高峰期排队概率。
-    - cron: "3,13,23,33,43,53 * * * *"
+    # GitHub Actions cron 使用 UTC。
+    # 北京时间每天 07:00、07:30、08:00 抓取一次当天全部新闻。
+    - cron: "0,30 23 * * *"
+    - cron: "0 0 * * *"
+
+    # 北京时间每天 19:00、19:30、20:00 抓取一次当天全部新闻。
+    - cron: "0,30 11 * * *"
+    - cron: "0 12 * * *"
 
 permissions:
   contents: read
