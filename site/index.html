@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>今日全球快讯</title>
+  <meta name="description" content="自动整理华尔街见闻今日全球快讯的个人信息页" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div>
+        <p class="eyebrow">MARKET LIVE</p>
+        <h1>今日全球快讯</h1>
+        <p class="subtitle">
+          自动整理
+          <a href="https://wallstreetcn.com/live/global" target="_blank" rel="noreferrer">华尔街见闻 · 全球快讯</a>
+        </p>
+      </div>
+      <div class="status-wrap">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="statusText">读取数据中</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="summary" aria-label="今日摘要">
+      <div class="date-block">
+        <span class="label">日期</span>
+        <strong id="dateText">—</strong>
+      </div>
+      <div class="summary-grid">
+        <div class="metric">
+          <span>快讯</span>
+          <strong id="totalCount">—</strong>
+        </div>
+        <div class="metric">
+          <span>重要</span>
+          <strong id="importantCount">—</strong>
+        </div>
+        <div class="metric">
+          <span>非常重要</span>
+          <strong id="criticalCount">—</strong>
+        </div>
+      </div>
+      <div class="update-block">
+        <span class="label">数据生成</span>
+        <strong id="updatedText">—</strong>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="筛选与操作">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/>
+        </svg>
+        <input id="searchInput" type="search" placeholder="搜索关键词，例如：美联储、国债、人民币" />
+      </div>
+
+      <div class="filters" role="group" aria-label="重要性筛选">
+        <button class="filter active" data-filter="all">全部</button>
+        <button class="filter" data-filter="important">重要以上</button>
+        <button class="filter" data-filter="critical">非常重要</button>
+      </div>
+
+      <button id="copyButton" class="action-button" type="button">复制当前结果</button>
+    </section>
+
+    <section class="result-meta">
+      <span id="resultCount">—</span>
+      <span class="separator">·</span>
+      <span>北京时间</span>
+      <span class="separator">·</span>
+      <span>网页每分钟检查一次新数据</span>
+    </section>
+
+    <section id="timeline" class="timeline" aria-live="polite"></section>
+
+    <section id="emptyState" class="empty-state" hidden>
+      <h2>没有匹配内容</h2>
+      <p>换一个关键词或筛选条件。</p>
+    </section>
+
+    <section id="errorState" class="error-state" hidden>
+      <h2>暂时没有拿到数据</h2>
+      <p id="errorText">稍后刷新页面再试。</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      本页仅做个人信息整理。内容版权归原始来源所有；点击单条快讯可回到原页面。
+    </p>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
