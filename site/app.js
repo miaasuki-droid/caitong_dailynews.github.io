@@ -22,6 +22,9 @@ const els = {
   searchInput: document.getElementById("searchInput"),
   selectedCount: document.getElementById("selectedCount"),
   selectedBreakdown: document.getElementById("selectedBreakdown"),
+  selectionWorkbench: document.getElementById("selectionWorkbench"),
+  selectionDrawerToggle: document.getElementById("selectionDrawerToggle"),
+  drawerSummary: document.getElementById("drawerSummary"),
   morningButton: document.getElementById("morningButton"),
   eveningButton: document.getElementById("eveningButton"),
   clearSelectionButton: document.getElementById("clearSelectionButton"),
@@ -195,6 +198,9 @@ function renderSelectionStatus() {
   const counts = selectionCounts();
   els.selectedCount.textContent = `已选 ${counts.total} 条`;
   els.selectedBreakdown.textContent = `国内 ${counts.domestic} · 国外 ${counts.foreign}`;
+  els.drawerSummary.textContent = counts.total > 0
+    ? `已选 ${counts.total} 条 · 国内 ${counts.domestic} / 国外 ${counts.foreign} · 提交`
+    : "已选 0 条 · 提交";
   els.generateReportButton.disabled = counts.total === 0;
   els.clearSelectionButton.disabled = counts.total === 0;
   renderEdition();
@@ -360,6 +366,11 @@ els.timeline.addEventListener("click", (event) => {
   render();
 });
 
+els.selectionDrawerToggle.addEventListener("click", () => {
+  const isCollapsed = els.selectionWorkbench.classList.toggle("collapsed");
+  els.selectionDrawerToggle.setAttribute("aria-expanded", String(!isCollapsed));
+});
+
 [els.morningButton, els.eveningButton].forEach((button) => {
   button.addEventListener("click", () => {
     state.edition = button.dataset.edition;
@@ -382,6 +393,11 @@ els.generateReportButton.addEventListener("click", () => {
   const label = state.edition === "evening" ? "晚报" : "早报";
   els.reportHeadingText.textContent = `${label} · ${selectionCounts().total} 条新闻`;
   els.reportPanel.hidden = false;
+
+  if (window.matchMedia("(max-width: 780px)").matches) {
+    els.selectionWorkbench.classList.add("collapsed");
+    els.selectionDrawerToggle.setAttribute("aria-expanded", "false");
+  }
 
   requestAnimationFrame(() => {
     els.reportPanel.scrollIntoView({ behavior: "smooth", block: "start" });

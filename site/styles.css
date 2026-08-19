@@ -792,3 +792,150 @@ footer {
     padding: 14px;
   }
 }
+
+
+/* ===== v2.1: 手机底部折叠提交栏 ===== */
+
+.selection-drawer-toggle {
+  display: none;
+}
+
+@media (max-width: 780px) {
+  body {
+    padding-bottom: 76px;
+  }
+
+  .selection-workbench {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 1000;
+    margin: 0;
+    padding: 0;
+    display: block;
+    overflow: hidden;
+    border: 1px solid #d9dce1;
+    border-radius: 14px;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 12px 34px rgba(20,24,31,.18);
+    backdrop-filter: blur(12px);
+    transition: 180ms ease;
+  }
+
+  .selection-drawer-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 52px;
+    padding: 0 16px;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 0;
+    background: #202329;
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .drawer-arrow {
+    display: inline-block;
+    font-size: 20px;
+    line-height: 1;
+    transform: rotate(180deg);
+    transition: transform 180ms ease;
+  }
+
+  .selection-workbench.collapsed .drawer-arrow {
+    transform: rotate(0deg);
+  }
+
+  .selection-workbench-body {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
+    max-height: 52vh;
+    overflow-y: auto;
+  }
+
+  .selection-workbench.collapsed .selection-workbench-body {
+    display: none;
+  }
+
+  .selection-actions {
+    display: grid;
+    grid-template-columns: 0.8fr 1.6fr;
+    gap: 10px;
+  }
+
+  .selection-actions > button {
+    width: 100%;
+  }
+
+  .primary-action {
+    min-height: 56px;
+    font-size: 16px;
+    font-weight: 750;
+    border-radius: 11px;
+  }
+
+  .secondary-button {
+    min-height: 56px;
+    font-size: 14px;
+    border-radius: 11px;
+  }
+
+  .edition-toggle {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .edition-button {
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  .edition-note {
+    margin-top: 7px;
+  }
+
+  .classification {
+    gap: 8px;
+  }
+
+  .classify-btn {
+    min-height: 42px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .selection-workbench {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .selection-drawer-toggle {
+    min-height: 54px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .selection-workbench-body {
+    padding: 12px;
+  }
+
+  .selection-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .primary-action,
+  .secondary-button {
+    min-height: 58px;
+  }
+}

@@ -67,25 +67,32 @@
       </div>
     </section>
 
-    <section class="selection-workbench" aria-label="早晚报生成">
-      <div class="selection-status">
-        <span class="label">早晚报素材</span>
-        <strong id="selectedCount">已选 0 条</strong>
-        <span id="selectedBreakdown" class="selection-breakdown">国内 0 · 国外 0</span>
-      </div>
+    <section id="selectionWorkbench" class="selection-workbench collapsed" aria-label="早晚报生成">
+      <button id="selectionDrawerToggle" class="selection-drawer-toggle" type="button" aria-expanded="false">
+        <span class="drawer-arrow" aria-hidden="true">⌃</span>
+        <span id="drawerSummary">已选 0 条 · 提交</span>
+      </button>
 
-      <div class="edition-control">
-        <span class="label">报告类型</span>
-        <div class="edition-toggle" role="group" aria-label="报告类型">
-          <button id="morningButton" class="edition-button" data-edition="morning" type="button">早报</button>
-          <button id="eveningButton" class="edition-button" data-edition="evening" type="button">晚报</button>
+      <div class="selection-workbench-body">
+        <div class="selection-status">
+          <span class="label">早晚报素材</span>
+          <strong id="selectedCount">已选 0 条</strong>
+          <span id="selectedBreakdown" class="selection-breakdown">国内 0 · 国外 0</span>
         </div>
-        <span class="edition-note">北京时间 14:00 前默认早报，14:00 起默认晚报</span>
-      </div>
 
-      <div class="selection-actions">
-        <button id="clearSelectionButton" class="secondary-button" type="button">清空选择</button>
-        <button id="generateReportButton" class="action-button primary-action" type="button" disabled>提交并生成报告</button>
+        <div class="edition-control">
+          <span class="label">报告类型</span>
+          <div class="edition-toggle" role="group" aria-label="报告类型">
+            <button id="morningButton" class="edition-button" data-edition="morning" type="button">早报</button>
+            <button id="eveningButton" class="edition-button" data-edition="evening" type="button">晚报</button>
+          </div>
+          <span class="edition-note">北京时间 14:00 前默认早报，14:00 起默认晚报</span>
+        </div>
+
+        <div class="selection-actions">
+          <button id="clearSelectionButton" class="secondary-button" type="button">清空选择</button>
+          <button id="generateReportButton" class="action-button primary-action" type="button" disabled>提交并生成报告</button>
+        </div>
       </div>
     </section>
 
