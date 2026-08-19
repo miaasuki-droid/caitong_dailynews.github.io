@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
   <title>整理早晚报</title>
-  <link rel="stylesheet" href="./styles.css?v=320" />
+  <link rel="stylesheet" href="./styles.css?v=330" />
 </head>
 <body class="review-body">
   <header class="review-topbar">
@@ -78,6 +78,16 @@
     </section>
   </main>
 
+  <div id="globalNodeMenu" class="global-node-menu" hidden>
+    <div class="global-node-menu-grid">
+      <button type="button" class="global-menu-action" data-action="move-up">上移</button>
+      <button type="button" class="global-menu-action" data-action="move-top">移到最上</button>
+      <button type="button" class="global-menu-action" data-action="move-down">下移</button>
+      <button type="button" class="global-menu-action" data-action="move-bottom">移到最下</button>
+    </div>
+    <div id="globalNodeMenuExtra" class="global-node-menu-extra"></div>
+  </div>
+
   <div id="groupPickerOverlay" class="group-picker-overlay" hidden>
     <section class="group-picker-modal" role="dialog" aria-modal="true" aria-labelledby="groupPickerTitle">
       <div class="group-picker-head">
@@ -89,6 +99,6 @@
     </section>
   </div>
 
-  <script src="./review.js?v=320"></script>
+  <script src="./review.js?v=330"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ const state = {
   initialBoards: null,
   expandedItems: new Set(),
   pendingGroupItem: null,
+  activeNodeMenu: null,
 };
 
 const els = {
@@ -30,6 +31,8 @@ const els = {
   groupPickerList: document.getElementById("groupPickerList"),
   closeGroupPickerButton: document.getElementById("closeGroupPickerButton"),
   createGroupForItemButton: document.getElementById("createGroupForItemButton"),
+  globalNodeMenu: document.getElementById("globalNodeMenu"),
+  globalNodeMenuExtra: document.getElementById("globalNodeMenuExtra"),
 };
 
 const CIRCLED = [
@@ -144,26 +147,17 @@ function previewText(item) {
 }
 
 function menuHtml(uid, category, nodeType, inGroup = false) {
-  const buttons = [
-    `<button type="button" class="node-menu-action" data-action="move-up" data-uid="${escapeHtml(uid)}">上移</button>`,
-    `<button type="button" class="node-menu-action" data-action="move-down" data-uid="${escapeHtml(uid)}">下移</button>`,
-  ];
-
-  if (nodeType === "item") {
-    buttons.push(`<button type="button" class="node-menu-action" data-action="group" data-uid="${escapeHtml(uid)}" data-category="${category}">分组</button>`);
-    if (inGroup) {
-      buttons.push(`<button type="button" class="node-menu-action" data-action="ungroup" data-uid="${escapeHtml(uid)}">移出组</button>`);
-    }
-    buttons.push(`<button type="button" class="node-menu-action danger" data-action="delete-item" data-uid="${escapeHtml(uid)}">删除</button>`);
-  } else {
-    buttons.push(`<button type="button" class="node-menu-action danger" data-action="delete-group" data-uid="${escapeHtml(uid)}" data-category="${category}">删除组</button>`);
-  }
-
   return `
-    <div class="node-menu-wrap">
-      <button type="button" class="node-menu-button" aria-label="更多操作" aria-expanded="false">...</button>
-      <div class="node-menu-popover" hidden>${buttons.join("")}</div>
-    </div>`;
+    <button
+      type="button"
+      class="node-menu-button"
+      aria-label="更多操作"
+      aria-expanded="false"
+      data-menu-uid="${escapeHtml(uid)}"
+      data-menu-category="${category}"
+      data-menu-type="${nodeType}"
+      data-menu-in-group="${inGroup ? "true" : "false"}"
+    >...</button>`;
 }
 
 function itemHtml(item, category, groupId = "", inGroup = false) {
@@ -179,6 +173,13 @@ function itemHtml(item, category, groupId = "", inGroup = false) {
       data-group-id="${escapeHtml(groupId)}"
     >
       ${menuHtml(item.uid, category, "item", inGroup)}
+      <button
+        type="button"
+        class="corner-delete-button delete-item-corner"
+        data-delete-uid="${escapeHtml(item.uid)}"
+        aria-label="删除新闻"
+        title="删除"
+      >×</button>
       <div class="review-item-main">
         <div class="review-item-meta">${escapeHtml(item.time || "")}${preview.truncated ? " · 点正文展开" : ""}</div>
         <div
@@ -205,6 +206,14 @@ function boardHtml(category) {
           ${menuHtml(node.uid, category, "group")}
           <input class="group-title-input" data-group-id="${escapeHtml(node.uid)}" value="${escapeHtml(node.title)}" />
           <span class="group-count">${node.items.length} 条</span>
+          <button
+            type="button"
+            class="corner-delete-button delete-group-corner"
+            data-delete-group="${escapeHtml(node.uid)}"
+            data-category="${category}"
+            aria-label="删除组"
+            title="删除组"
+          >×</button>
         </div>
         <div class="group-items">
           ${node.items.map((item) => itemHtml(item, category, node.uid, true)).join("")}
@@ -256,16 +265,29 @@ function locateNode(uid) {
   return null;
 }
 
-function moveUpDown(uid, direction) {
+function moveNodePosition(uid, action) {
   const found = locateNode(uid);
   if (!found) return;
 
-  const nextIndex = found.index + direction;
-  if (nextIndex < 0 || nextIndex >= found.parent.length) return;
+  let targetIndex = found.index;
 
-  [found.parent[found.index], found.parent[nextIndex]] = [found.parent[nextIndex], found.parent[found.index]];
+  if (action === "move-top") targetIndex = 0;
+  else if (action === "move-up") targetIndex = Math.max(0, found.index - 1);
+  else if (action === "move-down") targetIndex = Math.min(found.parent.length - 1, found.index + 1);
+  else if (action === "move-bottom") targetIndex = found.parent.length - 1;
+  else return;
+
+  if (targetIndex === found.index) return;
+
+  const [node] = found.parent.splice(found.index, 1);
+  found.parent.splice(targetIndex, 0, node);
+
   saveLayout();
   render();
+}
+
+function moveUpDown(uid, direction) {
+  moveNodePosition(uid, direction < 0 ? "move-up" : "move-down");
 }
 
 function deleteItem(uid) {
@@ -363,14 +385,73 @@ function closeGroupPicker() {
   document.body.classList.remove("modal-open");
 }
 
-function closeAllMenus(except = null) {
-  document.querySelectorAll(".node-menu-popover:not([hidden])").forEach((menu) => {
-    if (menu !== except) {
-      menu.hidden = true;
-      const button = menu.parentElement?.querySelector(".node-menu-button");
-      if (button) button.setAttribute("aria-expanded", "false");
-    }
+function closeGlobalNodeMenu() {
+  els.globalNodeMenu.hidden = true;
+
+  document.querySelectorAll(".node-menu-button[aria-expanded='true']").forEach((button) => {
+    button.setAttribute("aria-expanded", "false");
   });
+
+  state.activeNodeMenu = null;
+}
+
+function buildGlobalMenuExtra(nodeType, inGroup) {
+  if (nodeType !== "item") return "";
+
+  const parts = [
+    '<button type="button" class="global-menu-extra-action" data-action="group">分组</button>',
+  ];
+
+  if (inGroup) {
+    parts.push('<button type="button" class="global-menu-extra-action" data-action="ungroup">移出组</button>');
+  }
+
+  return parts.join("");
+}
+
+function positionGlobalNodeMenu(button) {
+  const rect = button.getBoundingClientRect();
+  const menu = els.globalNodeMenu;
+  const gap = 8;
+  const margin = 10;
+
+  menu.hidden = false;
+  menu.style.left = "0px";
+  menu.style.top = "0px";
+  menu.style.visibility = "hidden";
+
+  const menuRect = menu.getBoundingClientRect();
+
+  let left = rect.left;
+  if (left + menuRect.width > window.innerWidth - margin) {
+    left = window.innerWidth - menuRect.width - margin;
+  }
+  left = Math.max(margin, left);
+
+  let top = rect.bottom + gap;
+  if (top + menuRect.height > window.innerHeight - margin) {
+    top = rect.top - menuRect.height - gap;
+  }
+  top = Math.max(margin, Math.min(top, window.innerHeight - menuRect.height - margin));
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.visibility = "visible";
+}
+
+function openGlobalNodeMenu(button) {
+  closeGlobalNodeMenu();
+
+  const uid = button.dataset.menuUid;
+  const category = button.dataset.menuCategory;
+  const nodeType = button.dataset.menuType;
+  const inGroup = button.dataset.menuInGroup === "true";
+
+  state.activeNodeMenu = { uid, category, nodeType, inGroup };
+  els.globalNodeMenuExtra.innerHTML = buildGlobalMenuExtra(nodeType, inGroup);
+
+  button.setAttribute("aria-expanded", "true");
+  positionGlobalNodeMenu(button);
 }
 
 function addManualNews(category) {
@@ -537,32 +618,54 @@ document.addEventListener("click", (event) => {
   if (menuButton) {
     event.stopPropagation();
 
-    const menu = menuButton.parentElement.querySelector(".node-menu-popover");
-    const willOpen = menu.hidden;
+    if (
+      state.activeNodeMenu?.uid === menuButton.dataset.menuUid &&
+      !els.globalNodeMenu.hidden
+    ) {
+      closeGlobalNodeMenu();
+    } else {
+      openGlobalNodeMenu(menuButton);
+    }
 
-    closeAllMenus(menu);
-    menu.hidden = !willOpen;
-    menuButton.setAttribute("aria-expanded", String(willOpen));
     return;
   }
 
-  const actionButton = event.target.closest(".node-menu-action");
+  const menuAction = event.target.closest(".global-menu-action, .global-menu-extra-action");
 
-  if (actionButton) {
+  if (menuAction && state.activeNodeMenu) {
     event.stopPropagation();
 
-    const action = actionButton.dataset.action;
-    const uid = actionButton.dataset.uid;
+    const action = menuAction.dataset.action;
+    const { uid, category } = state.activeNodeMenu;
 
-    closeAllMenus();
+    closeGlobalNodeMenu();
 
-    if (action === "move-up") moveUpDown(uid, -1);
-    else if (action === "move-down") moveUpDown(uid, 1);
-    else if (action === "group") openGroupPicker(uid, actionButton.dataset.category);
-    else if (action === "ungroup") ungroupItem(uid);
-    else if (action === "delete-item") deleteItem(uid);
-    else if (action === "delete-group") deleteGroup(actionButton.dataset.category, uid);
+    if (["move-top", "move-up", "move-down", "move-bottom"].includes(action)) {
+      moveNodePosition(uid, action);
+    } else if (action === "group") {
+      openGroupPicker(uid, category);
+    } else if (action === "ungroup") {
+      ungroupItem(uid);
+    }
 
+    return;
+  }
+
+  const deleteItemButton = event.target.closest(".delete-item-corner");
+
+  if (deleteItemButton) {
+    event.stopPropagation();
+    closeGlobalNodeMenu();
+    deleteItem(deleteItemButton.dataset.deleteUid);
+    return;
+  }
+
+  const deleteGroupButton = event.target.closest(".delete-group-corner");
+
+  if (deleteGroupButton) {
+    event.stopPropagation();
+    closeGlobalNodeMenu();
+    deleteGroup(deleteGroupButton.dataset.category, deleteGroupButton.dataset.deleteGroup);
     return;
   }
 
@@ -589,8 +692,8 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (!event.target.closest(".node-menu-wrap")) {
-    closeAllMenus();
+  if (!event.target.closest("#globalNodeMenu")) {
+    closeGlobalNodeMenu();
   }
 });
 
@@ -612,8 +715,13 @@ document.addEventListener("input", (event) => {
 });
 
 window.addEventListener("resize", () => {
+  closeGlobalNodeMenu();
   render();
 });
+
+window.addEventListener("scroll", () => {
+  closeGlobalNodeMenu();
+}, { passive: true });
 
 els.newDomesticGroupButton.addEventListener("click", () => addGroup("domestic"));
 els.newForeignGroupButton.addEventListener("click", () => addGroup("foreign"));

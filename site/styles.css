@@ -1952,3 +1952,175 @@ body {
     padding: 12px;
   }
 }
+
+
+/* ===== v3.3：全局浮层菜单 + 独立删除按钮 + 非锁定顶部 ===== */
+
+/* 第二页顶部不锁定 */
+.review-topbar {
+  position: static !important;
+}
+
+/* 卡片/组不再依赖内部弹层 */
+.review-group {
+  overflow: visible !important;
+}
+
+.review-item {
+  position: relative;
+  grid-template-columns: 38px 1fr !important;
+  padding-right: 44px !important;
+}
+
+.group-head {
+  position: relative;
+  grid-template-columns: 38px 1fr auto !important;
+  padding-right: 44px !important;
+}
+
+/* 旧内嵌菜单彻底禁用 */
+.node-menu-wrap,
+.node-menu-popover,
+.node-menu-action {
+  display: none !important;
+}
+
+/* ... 按钮 */
+.node-menu-button {
+  position: relative;
+  z-index: 4;
+}
+
+/* 删除独立放在右上角 */
+.corner-delete-button {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #a2a7ae;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.corner-delete-button:hover {
+  background: #fff0ee;
+  color: #a62921;
+}
+
+/* 独立浮层：position fixed，不受卡片/组 overflow 和 z-index 影响 */
+.global-node-menu {
+  position: fixed;
+  z-index: 10000;
+  width: 224px;
+  padding: 8px;
+  border: 1px solid #d8dbe0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(20,24,31,.22);
+}
+
+.global-node-menu[hidden] {
+  display: none;
+}
+
+.global-node-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.global-menu-action,
+.global-menu-extra-action {
+  appearance: none;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #f5f6f8;
+  color: #282c31;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.global-menu-action:hover,
+.global-menu-extra-action:hover {
+  background: #e9ebef;
+}
+
+.global-node-menu-extra {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.global-menu-extra-action {
+  background: #fff;
+  border: 1px solid #e0e2e6;
+}
+
+/* 顶部的两个建组按钮正常随页面滚走 */
+.review-header-actions {
+  position: static !important;
+}
+
+/* 移动端单独优化 */
+@media (max-width: 780px) {
+  .review-item {
+    grid-template-columns: 34px 1fr !important;
+    padding-right: 39px !important;
+  }
+
+  .group-head {
+    grid-template-columns: 34px 1fr auto !important;
+    padding-right: 39px !important;
+  }
+
+  .corner-delete-button {
+    top: 7px;
+    right: 7px;
+    width: 27px;
+    height: 27px;
+    font-size: 18px;
+  }
+
+  .global-node-menu {
+    width: min(236px, calc(100vw - 20px));
+    padding: 7px;
+    border-radius: 12px;
+  }
+
+  .global-menu-action,
+  .global-menu-extra-action {
+    min-height: 46px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .global-node-menu {
+    width: min(230px, calc(100vw - 16px));
+  }
+
+  .global-node-menu-grid {
+    gap: 5px;
+  }
+
+  .global-menu-action,
+  .global-menu-extra-action {
+    min-height: 44px;
+    padding: 8px 8px;
+    font-size: 12.5px;
+  }
+}
