@@ -1628,3 +1628,327 @@ body {
     min-height: 46px;
   }
 }
+
+
+/* ===== v3.2：整理页改为 ... 菜单操作；移动端缩略显示 ===== */
+
+.review-item,
+.review-group {
+  position: relative;
+}
+
+.review-item {
+  grid-template-columns: 38px 1fr !important;
+}
+
+.group-head {
+  grid-template-columns: 38px 1fr auto !important;
+}
+
+.node-menu-wrap {
+  position: relative;
+  align-self: start;
+  z-index: 20;
+}
+
+.node-menu-button {
+  width: 34px;
+  height: 34px;
+  padding: 0 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #666c76;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.node-menu-button:hover,
+.node-menu-button[aria-expanded="true"] {
+  background: #e7e9ed;
+  color: #22262b;
+}
+
+.node-menu-popover {
+  position: absolute;
+  top: 38px;
+  left: 0;
+  z-index: 100;
+  min-width: 116px;
+  padding: 5px;
+  border: 1px solid #dcdee3;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(20,24,31,.16);
+}
+
+.node-menu-popover[hidden] {
+  display: none;
+}
+
+.node-menu-action {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 11px;
+  display: block;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #2d3036;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.node-menu-action:hover {
+  background: #f2f3f5;
+}
+
+.node-menu-action.danger {
+  color: #a62921;
+}
+
+.review-item-main {
+  min-width: 0;
+}
+
+.review-item-content {
+  cursor: default;
+}
+
+.group-count {
+  color: #91969e;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.group-items {
+  min-height: 54px;
+  padding: 3px 8px 8px;
+}
+
+.group-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15,17,20,.36);
+}
+
+.group-picker-overlay[hidden] {
+  display: none;
+}
+
+.group-picker-modal {
+  width: min(420px, 100%);
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #dcdfe4;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(20,24,31,.24);
+}
+
+.group-picker-head {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.group-picker-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.icon-close-button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: #f2f3f5;
+  color: #5e646d;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.group-picker-list {
+  display: grid;
+  gap: 7px;
+}
+
+.group-picker-option {
+  width: 100%;
+  min-height: 48px;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e0e2e6;
+  border-radius: 9px;
+  background: #fff;
+  color: #24272c;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-picker-option:hover {
+  background: #f7f8fa;
+  border-color: #cdd1d7;
+}
+
+.group-picker-option small {
+  color: #969ba3;
+  white-space: nowrap;
+}
+
+.group-picker-empty {
+  padding: 20px 12px;
+  text-align: center;
+  color: #92979f;
+  font-size: 12px;
+}
+
+.group-picker-create {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.modal-open {
+  overflow: hidden;
+}
+
+/* 电脑端：保留双栏、完整正文，操作菜单紧凑 */
+@media (min-width: 901px) {
+  .review-page {
+    width: min(1240px, calc(100% - 40px));
+  }
+
+  .review-columns {
+    gap: 20px;
+  }
+
+  .review-item {
+    padding: 12px 14px 12px 10px;
+  }
+
+  .review-item-content {
+    font-size: 13.5px;
+    line-height: 1.68;
+  }
+
+  .review-item-meta {
+    margin-bottom: 4px;
+  }
+}
+
+/* 移动端：字体更小、卡片更紧凑、默认按字符数缩略 */
+@media (max-width: 780px) {
+  .review-item {
+    grid-template-columns: 34px 1fr !important;
+    gap: 7px;
+    padding: 9px 9px 9px 7px;
+  }
+
+  .group-head {
+    grid-template-columns: 34px 1fr auto !important;
+    gap: 6px;
+    padding: 7px 8px 7px 6px;
+  }
+
+  .node-menu-button {
+    width: 31px;
+    height: 31px;
+    padding-bottom: 7px;
+    font-size: 18px;
+  }
+
+  .node-menu-popover {
+    top: 34px;
+    min-width: 132px;
+    padding: 6px;
+  }
+
+  .node-menu-action {
+    min-height: 43px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .review-item-content {
+    font-size: 12px !important;
+    line-height: 1.52 !important;
+    cursor: pointer;
+  }
+
+  .review-item-meta {
+    margin-bottom: 3px;
+    font-size: 10px;
+  }
+
+  .group-title-input {
+    font-size: 13px;
+  }
+
+  .review-group {
+    margin: 7px 0;
+  }
+
+  .group-items {
+    padding: 2px 5px 6px;
+  }
+
+  .review-item.in-group {
+    margin: 5px 0;
+  }
+
+  .manual-news-input {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .group-picker-modal {
+    align-self: end;
+    width: 100%;
+    max-height: 72vh;
+    border-radius: 16px 16px 10px 10px;
+  }
+
+  .group-picker-option {
+    min-height: 54px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .review-page {
+    width: min(100% - 14px, 1180px);
+  }
+
+  .review-item-content {
+    font-size: 11.5px !important;
+  }
+
+  .review-help {
+    padding: 11px 12px;
+  }
+
+  .manual-add-panel {
+    padding: 12px;
+  }
+}

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
   <title>整理早晚报</title>
-  <link rel="stylesheet" href="./styles.css?v=310" />
+  <link rel="stylesheet" href="./styles.css?v=320" />
 </head>
 <body class="review-body">
   <header class="review-topbar">
@@ -26,7 +26,7 @@
     <section class="review-help">
       <div>
         <strong id="reviewCount">—</strong>
-        <span>拖动左侧手柄排序；新闻可拖进组或跨组移动；不需要的直接删除。</span>
+        <span>点击每条新闻或组左上角“...”进行上移、下移、分组或删除。手机端正文会自动缩略，点正文可展开。</span>
       </div>
       <div class="review-actions-top">
         <button id="resetButton" class="secondary-button">恢复初始顺序</button>
@@ -40,7 +40,7 @@
           <span class="label">额外素材</span>
           <h2>手动添加新闻</h2>
         </div>
-        <span class="manual-add-note">整段粘贴即可，新闻内部换行会保留。</span>
+        <span class="manual-add-note">整段粘贴即可；生成报告时同一条新闻内部会自动合并为一个段落。</span>
       </div>
       <textarea id="manualNewsInput" class="manual-news-input" placeholder="把额外新闻粘贴到这里……" spellcheck="false"></textarea>
       <div class="manual-add-actions">
@@ -69,15 +69,26 @@
         <button id="copyReportButton" class="action-button" type="button">一键复制</button>
       </div>
       <textarea id="reportText" class="report-text" spellcheck="false"></textarea>
-      <p class="report-hint">组标题使用（数字），组内新闻使用带圈序号；同一条新闻内部允许换行，但条目之间不插空行。</p>
+      <p class="report-hint">同一条新闻内部不留空行；不同新闻之间保留一个空行。组标题使用（数字），组内新闻使用①②③重新编号。</p>
     </section>
 
     <section id="reviewError" class="error-state" hidden>
       <h2>没有可整理的新闻</h2>
-      <p>请返回上一页至少选择一条新闻。</p>
+      <p>请返回上一页至少选择一条新闻，或在上方手动添加。</p>
     </section>
   </main>
 
-  <script src="./review.js?v=310"></script>
+  <div id="groupPickerOverlay" class="group-picker-overlay" hidden>
+    <section class="group-picker-modal" role="dialog" aria-modal="true" aria-labelledby="groupPickerTitle">
+      <div class="group-picker-head">
+        <h2 id="groupPickerTitle">选择分组</h2>
+        <button id="closeGroupPickerButton" class="icon-close-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <div id="groupPickerList" class="group-picker-list"></div>
+      <button id="createGroupForItemButton" class="secondary-button group-picker-create" type="button">+ 新建组并放入</button>
+    </section>
+  </div>
+
+  <script src="./review.js?v=320"></script>
 </body>
 </html>
