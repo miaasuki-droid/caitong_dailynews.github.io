@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
   <title>今日全球快讯</title>
-  <meta name="description" content="自动整理华尔街见闻今日全球快讯的个人信息页" />
+  <meta name="description" content="财通固收早晚报快讯筛选工具" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -52,7 +52,7 @@
       </div>
     </section>
 
-    <section class="controls" aria-label="筛选与操作">
+    <section class="controls" aria-label="筛选">
       <div class="search-box">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/>
@@ -65,8 +65,28 @@
         <button class="filter" data-filter="important">重要以上</button>
         <button class="filter" data-filter="critical">非常重要</button>
       </div>
+    </section>
 
-      <button id="copyButton" class="action-button" type="button">复制当前结果</button>
+    <section class="selection-workbench" aria-label="早晚报生成">
+      <div class="selection-status">
+        <span class="label">早晚报素材</span>
+        <strong id="selectedCount">已选 0 条</strong>
+        <span id="selectedBreakdown" class="selection-breakdown">国内 0 · 国外 0</span>
+      </div>
+
+      <div class="edition-control">
+        <span class="label">报告类型</span>
+        <div class="edition-toggle" role="group" aria-label="报告类型">
+          <button id="morningButton" class="edition-button" data-edition="morning" type="button">早报</button>
+          <button id="eveningButton" class="edition-button" data-edition="evening" type="button">晚报</button>
+        </div>
+        <span class="edition-note">北京时间 14:00 前默认早报，14:00 起默认晚报</span>
+      </div>
+
+      <div class="selection-actions">
+        <button id="clearSelectionButton" class="secondary-button" type="button">清空选择</button>
+        <button id="generateReportButton" class="action-button primary-action" type="button" disabled>提交并生成报告</button>
+      </div>
     </section>
 
     <section class="result-meta">
@@ -74,7 +94,7 @@
       <span class="separator">·</span>
       <span>北京时间</span>
       <span class="separator">·</span>
-      <span>网页每分钟检查一次新数据</span>
+      <span>点击每条快讯右侧“国内 / 国外”加入报告</span>
     </section>
 
     <section id="timeline" class="timeline" aria-live="polite"></section>
@@ -87,6 +107,18 @@
     <section id="errorState" class="error-state" hidden>
       <h2>暂时没有拿到数据</h2>
       <p id="errorText">稍后刷新页面再试。</p>
+    </section>
+
+    <section id="reportPanel" class="report-panel" hidden>
+      <div class="report-heading">
+        <div>
+          <span class="label">生成结果</span>
+          <h2 id="reportHeadingText">早晚报文本</h2>
+        </div>
+        <button id="copyReportButton" class="action-button" type="button">一键复制报告</button>
+      </div>
+      <textarea id="reportText" class="report-text" spellcheck="false" aria-label="生成的早晚报文本"></textarea>
+      <p class="report-hint">可以直接在这里手动修改；“一键复制报告”会复制修改后的最终文本。</p>
     </section>
   </main>
 
