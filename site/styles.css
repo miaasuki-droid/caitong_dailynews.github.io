@@ -1541,3 +1541,90 @@ body {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* ===== v3.1：整理页手动添加新闻 ===== */
+.manual-add-panel {
+  margin-bottom: 16px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.manual-add-heading {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.manual-add-heading .label {
+  margin-bottom: 3px;
+}
+
+.manual-add-heading h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.manual-add-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.manual-news-input {
+  display: block;
+  width: 100%;
+  min-height: 118px;
+  resize: vertical;
+  padding: 12px 13px;
+  border: 1px solid #dfe2e6;
+  border-radius: 9px;
+  outline: none;
+  background: #fbfbfc;
+  color: #22262b;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.manual-news-input:focus {
+  border-color: #b7bcc4;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(20,24,31,.035);
+}
+
+.manual-add-actions {
+  margin-top: 9px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.manual-add-actions > button {
+  min-width: 110px;
+}
+
+@media (max-width: 780px) {
+  .manual-add-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .manual-news-input {
+    min-height: 132px;
+  }
+
+  .manual-add-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .manual-add-actions > button {
+    width: 100%;
+    min-height: 46px;
+  }
+}

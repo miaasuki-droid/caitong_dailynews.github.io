@@ -21,6 +21,9 @@ const els = {
   reportText: document.getElementById("reportText"),
   copyReportButton: document.getElementById("copyReportButton"),
   reviewError: document.getElementById("reviewError"),
+  manualNewsInput: document.getElementById("manualNewsInput"),
+  addManualDomesticButton: document.getElementById("addManualDomesticButton"),
+  addManualForeignButton: document.getElementById("addManualForeignButton"),
 };
 
 const CIRCLED = [
@@ -65,6 +68,18 @@ function makeItem(raw) {
     content: raw.content || raw.title || "",
     title: raw.title || "",
     time: raw.time || "",
+  };
+}
+
+function makeManualItem(content) {
+  return {
+    type: "item",
+    uid: newId("manual"),
+    newsId: "",
+    content: String(content || "").trim().replace(/\n{3,}/g, "\n\n"),
+    title: "",
+    time: "手动添加",
+    manual: true,
   };
 }
 
@@ -427,6 +442,19 @@ function addGroup(category) {
   render();
 }
 
+function addManualNews(category) {
+  const content = els.manualNewsInput.value.trim();
+  if (!content) {
+    els.manualNewsInput.focus();
+    return;
+  }
+
+  state.boards[category].push(makeManualItem(content));
+  els.manualNewsInput.value = "";
+  saveLayout();
+  render();
+}
+
 async function init() {
   try {
     const res = await fetch(`./data/latest.json?t=${Date.now()}`, { cache: "no-store" });
@@ -443,11 +471,7 @@ async function init() {
     const selected = data.items.filter((item) => selections[String(item.id)]);
 
     if (!selected.length) {
-      els.reviewError.hidden = false;
-      els.previewButton.disabled = true;
-      els.newDomesticGroupButton.disabled = true;
-      els.newForeignGroupButton.disabled = true;
-      return;
+      els.reviewError.hidden = true;
     }
 
     const baseBoards = {
@@ -466,15 +490,19 @@ async function init() {
     if (saved?.domestic && saved?.foreign) {
       const validIds = new Set(selected.map((item) => `news-${item.id}`));
 
+      function keepSavedItem(item) {
+        return Boolean(item?.manual) || String(item?.uid || "").startsWith("manual-") || validIds.has(item?.uid);
+      }
+
       function cleanBoard(board) {
         return board
           .map((node) => {
             if (node.type === "group") {
-              node.items = (node.items || []).filter((item) => validIds.has(item.uid));
+              node.items = (node.items || []).filter(keepSavedItem);
               return node;
             }
 
-            return validIds.has(node.uid) ? node : null;
+            return keepSavedItem(node) ? node : null;
           })
           .filter(Boolean);
       }
@@ -546,6 +574,8 @@ document.addEventListener("input", (event) => {
 
 els.newDomesticGroupButton.addEventListener("click", () => addGroup("domestic"));
 els.newForeignGroupButton.addEventListener("click", () => addGroup("foreign"));
+els.addManualDomesticButton.addEventListener("click", () => addManualNews("domestic"));
+els.addManualForeignButton.addEventListener("click", () => addManualNews("foreign"));
 
 els.resetButton.addEventListener("click", () => {
   state.boards = clone(state.initialBoards);

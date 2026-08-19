@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
   <title>整理早晚报</title>
-  <link rel="stylesheet" href="./styles.css?v=300" />
+  <link rel="stylesheet" href="./styles.css?v=310" />
 </head>
 <body class="review-body">
   <header class="review-topbar">
@@ -31,6 +31,21 @@
       <div class="review-actions-top">
         <button id="resetButton" class="secondary-button">恢复初始顺序</button>
         <button id="previewButton" class="action-button primary-action">生成文本</button>
+      </div>
+    </section>
+
+    <section class="manual-add-panel">
+      <div class="manual-add-heading">
+        <div>
+          <span class="label">额外素材</span>
+          <h2>手动添加新闻</h2>
+        </div>
+        <span class="manual-add-note">整段粘贴即可，新闻内部换行会保留。</span>
+      </div>
+      <textarea id="manualNewsInput" class="manual-news-input" placeholder="把额外新闻粘贴到这里……" spellcheck="false"></textarea>
+      <div class="manual-add-actions">
+        <button id="addManualDomesticButton" class="secondary-button" type="button">添加到国内</button>
+        <button id="addManualForeignButton" class="action-button" type="button">添加到国外</button>
       </div>
     </section>
 
@@ -63,6 +78,6 @@
     </section>
   </main>
 
-  <script src="./review.js?v=300"></script>
+  <script src="./review.js?v=310"></script>
 </body>
 </html>
