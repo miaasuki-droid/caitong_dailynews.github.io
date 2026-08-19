@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light" />
   <title>今日全球快讯</title>
   <meta name="description" content="财通固收早晚报快讯筛选工具" />
-  <link rel="stylesheet" href="./styles.css?v=300" />
+  <link rel="stylesheet" href="./styles.css?v=340" />
 </head>
 <body>
   <header class="topbar">
@@ -72,6 +72,19 @@
   </main>
 
   <footer><p>本页仅做个人信息整理。内容版权归原始来源所有；点击单条快讯可回到原页面。</p></footer>
-  <script src="./app.js?v=300"></script>
+
+    <div id="selectedNavigator" class="selected-navigator" hidden aria-label="已选新闻导航">
+      <button id="previousSelectedButton" class="selected-nav-button" type="button" title="上一条已选新闻">
+        <span class="selected-nav-arrow">↑</span>
+        <span class="selected-nav-label">上一个已选</span>
+      </button>
+      <div id="selectedNavPosition" class="selected-nav-position">0 / 0</div>
+      <button id="nextSelectedButton" class="selected-nav-button" type="button" title="下一条已选新闻">
+        <span class="selected-nav-arrow">↓</span>
+        <span class="selected-nav-label">下一个已选</span>
+      </button>
+    </div>
+
+  <script src="./app.js?v=340"></script>
 </body>
 </html>

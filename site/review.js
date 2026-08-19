@@ -346,6 +346,22 @@ function moveItemToGroup(uid, category, groupId) {
   render();
 }
 
+
+function switchItemCategory(uid) {
+  const found = locateNode(uid);
+  if (!found || found.node.type !== "item") return;
+
+  const targetCategory = found.category === "domestic" ? "foreign" : "domestic";
+  const [item] = found.parent.splice(found.index, 1);
+
+  // 如果原来在组内，切换国内/国外时自动脱离原组，
+  // 作为普通新闻放到另一栏末尾。
+  state.boards[targetCategory].push(item);
+
+  saveLayout();
+  render();
+}
+
 function addGroup(category, presetTitle = "新建组") {
   const title = window.prompt("组标题", presetTitle);
   if (title === null) return null;
@@ -395,11 +411,14 @@ function closeGlobalNodeMenu() {
   state.activeNodeMenu = null;
 }
 
-function buildGlobalMenuExtra(nodeType, inGroup) {
+function buildGlobalMenuExtra(nodeType, inGroup, category) {
   if (nodeType !== "item") return "";
+
+  const switchLabel = category === "domestic" ? "切到国外" : "切到国内";
 
   const parts = [
     '<button type="button" class="global-menu-extra-action" data-action="group">分组</button>',
+    `<button type="button" class="global-menu-extra-action" data-action="switch-category">${switchLabel}</button>`,
   ];
 
   if (inGroup) {
@@ -448,7 +467,7 @@ function openGlobalNodeMenu(button) {
   const inGroup = button.dataset.menuInGroup === "true";
 
   state.activeNodeMenu = { uid, category, nodeType, inGroup };
-  els.globalNodeMenuExtra.innerHTML = buildGlobalMenuExtra(nodeType, inGroup);
+  els.globalNodeMenuExtra.innerHTML = buildGlobalMenuExtra(nodeType, inGroup, category);
 
   button.setAttribute("aria-expanded", "true");
   positionGlobalNodeMenu(button);
@@ -646,6 +665,8 @@ document.addEventListener("click", (event) => {
       openGroupPicker(uid, category);
     } else if (action === "ungroup") {
       ungroupItem(uid);
+    } else if (action === "switch-category") {
+      switchItemCategory(uid);
     }
 
     return;

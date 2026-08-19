@@ -4,6 +4,7 @@ const state = {
   selections: {},
   edition: null,
   editionManuallySet: false,
+  selectedNavUid: null,
 };
 
 const els = {
@@ -23,6 +24,10 @@ const els = {
   eveningButton: document.getElementById("eveningButton"),
   clearSelectionButton: document.getElementById("clearSelectionButton"),
   generateReportButton: document.getElementById("generateReportButton"),
+  selectedNavigator: document.getElementById("selectedNavigator"),
+  previousSelectedButton: document.getElementById("previousSelectedButton"),
+  nextSelectedButton: document.getElementById("nextSelectedButton"),
+  selectedNavPosition: document.getElementById("selectedNavPosition"),
 };
 
 function escapeHtml(value = "") {
@@ -131,7 +136,7 @@ function itemHtml(item) {
     : "";
 
   return `
-    <article class="news-item score-${Math.min(score, 3)} ${selected ? "is-selected" : ""}">
+    <article class="news-item score-${Math.min(score, 3)} ${selected ? "is-selected" : ""}" data-news-id="${escapeHtml(String(item.id))}">
       <time class="news-time">${escapeHtml(item.time || "")}</time>
       <div class="rail"><span class="dot" aria-hidden="true"></span></div>
       <div class="news-card">
@@ -178,6 +183,102 @@ function renderSelectionStatus() {
   renderEdition();
 }
 
+
+function selectedItemsInTimelineOrder() {
+  if (!state.data?.items) return [];
+  return state.data.items.filter((item) => Boolean(state.selections[String(item.id)]));
+}
+
+function updateSelectedNavigator() {
+  const selectedItems = selectedItemsInTimelineOrder();
+  const total = selectedItems.length;
+
+  els.selectedNavigator.hidden = total === 0;
+
+  if (total === 0) {
+    state.selectedNavUid = null;
+    els.selectedNavPosition.textContent = "0 / 0";
+    return;
+  }
+
+  let index = selectedItems.findIndex((item) => String(item.id) === String(state.selectedNavUid));
+
+  if (index < 0) {
+    state.selectedNavUid = null;
+    els.selectedNavPosition.textContent = `${total} 条已选`;
+  } else {
+    els.selectedNavPosition.textContent = `${index + 1} / ${total}`;
+  }
+}
+
+function currentSelectedAnchorIndex(selectedItems, direction) {
+  const explicitIndex = selectedItems.findIndex(
+    (item) => String(item.id) === String(state.selectedNavUid)
+  );
+  if (explicitIndex >= 0) return explicitIndex;
+
+  const viewportAnchor = window.innerHeight * 0.42;
+  const candidates = [];
+
+  for (let i = 0; i < selectedItems.length; i++) {
+    const el = document.querySelector(`.news-item[data-news-id="${CSS.escape(String(selectedItems[i].id))}"]`);
+    if (!el) continue;
+    const rect = el.getBoundingClientRect();
+    candidates.push({ i, center: rect.top + rect.height / 2 });
+  }
+
+  if (!candidates.length) return direction > 0 ? -1 : selectedItems.length;
+
+  if (direction > 0) {
+    const next = candidates.find((x) => x.center > viewportAnchor);
+    return next ? next.i - 1 : selectedItems.length - 1;
+  }
+
+  const previous = [...candidates].reverse().find((x) => x.center < viewportAnchor);
+  return previous ? previous.i + 1 : 0;
+}
+
+function navigateSelected(direction) {
+  const selectedItems = selectedItemsInTimelineOrder();
+  if (!selectedItems.length) return;
+
+  const anchorIndex = currentSelectedAnchorIndex(selectedItems, direction);
+  let targetIndex = anchorIndex + direction;
+
+  if (targetIndex < 0) targetIndex = selectedItems.length - 1;
+  if (targetIndex >= selectedItems.length) targetIndex = 0;
+
+  const target = selectedItems[targetIndex];
+  state.selectedNavUid = String(target.id);
+
+  const element = document.querySelector(
+    `.news-item[data-news-id="${CSS.escape(String(target.id))}"]`
+  );
+
+  if (!element) {
+    state.query = "";
+    els.searchInput.value = "";
+    render();
+
+    requestAnimationFrame(() => {
+      const restored = document.querySelector(
+        `.news-item[data-news-id="${CSS.escape(String(target.id))}"]`
+      );
+      if (restored) {
+        restored.scrollIntoView({ behavior: "smooth", block: "center" });
+        restored.classList.add("selected-nav-highlight");
+        setTimeout(() => restored.classList.remove("selected-nav-highlight"), 1600);
+      }
+    });
+  } else {
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    element.classList.add("selected-nav-highlight");
+    setTimeout(() => element.classList.remove("selected-nav-highlight"), 1600);
+  }
+
+  updateSelectedNavigator();
+}
+
 function render() {
   if (!state.data) return;
   const visible = getVisibleItems();
@@ -189,6 +290,7 @@ function render() {
   els.statusText.textContent = state.data.generated_at ? "已同步" : "已读取";
 
   renderSelectionStatus();
+  updateSelectedNavigator();
 }
 
 async function loadData() {
@@ -267,6 +369,10 @@ els.generateReportButton.addEventListener("click", () => {
   saveSelections();
   window.location.href = "./review.html";
 });
+
+
+els.previousSelectedButton.addEventListener("click", () => navigateSelected(-1));
+els.nextSelectedButton.addEventListener("click", () => navigateSelected(1));
 
 loadData();
 setInterval(loadData, 60_000);

@@ -2124,3 +2124,120 @@ body {
     font-size: 12.5px;
   }
 }
+
+
+/* ===== v3.4：首页已选新闻导航 + 整理页切换国内外 ===== */
+
+/* 第一页：固定的上一条/下一条已选新闻导航 */
+.selected-navigator {
+  position: fixed;
+  left: max(10px, calc((100vw - 1080px) / 2 - 118px));
+  top: 50%;
+  z-index: 900;
+  width: 104px;
+  overflow: hidden;
+  transform: translateY(-50%);
+  border: 1px solid #d9dce1;
+  border-radius: 12px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 8px 24px rgba(20,24,31,.10);
+  backdrop-filter: blur(10px);
+}
+
+.selected-navigator[hidden] {
+  display: none;
+}
+
+.selected-nav-button {
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  background: #fff;
+  color: #3d4249;
+  font: inherit;
+  cursor: pointer;
+}
+
+.selected-nav-button:hover {
+  background: #f2f3f5;
+  color: #15181c;
+}
+
+.selected-nav-arrow {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.selected-nav-label {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.selected-nav-position {
+  padding: 5px 6px;
+  border-top: 1px solid #e7e9ec;
+  border-bottom: 1px solid #e7e9ec;
+  color: #8b9098;
+  background: #fafbfc;
+  font-size: 10px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.news-item.selected-nav-highlight .news-card {
+  border-color: #7f8792 !important;
+  box-shadow: 0 0 0 3px rgba(70,77,87,.10), 0 5px 20px rgba(20,24,31,.08) !important;
+}
+
+/* 整理页菜单的附加操作，两项时保持整齐 */
+.global-node-menu-extra {
+  grid-template-columns: 1fr 1fr !important;
+}
+
+.global-node-menu-extra .global-menu-extra-action:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* 窄屏：首页导航缩成右侧两个小圆角按钮，避免占正文宽度 */
+@media (max-width: 780px) {
+  .selected-navigator {
+    left: auto;
+    right: 8px;
+    top: auto;
+    bottom: 18px;
+    width: 54px;
+    transform: none;
+    border-radius: 12px;
+  }
+
+  .selected-nav-button {
+    min-height: 48px;
+    padding: 4px;
+  }
+
+  .selected-nav-label {
+    display: none;
+  }
+
+  .selected-nav-arrow {
+    font-size: 19px;
+  }
+
+  .selected-nav-position {
+    padding: 4px 2px;
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 480px) {
+  .selected-navigator {
+    right: 6px;
+    bottom: 14px;
+    width: 50px;
+  }
+}
