@@ -1139,3 +1139,19 @@ body {
     bottom: auto !important;
   }
 }
+
+
+/* ===== v2.3.1 desktop collapse safeguard ===== */
+@media (min-width: 781px) {
+  .selection-workbench.collapsed .selection-workbench-body {
+    display: none !important;
+  }
+
+  .selection-workbench.collapsed {
+    height: auto !important;
+  }
+
+  .selection-drawer-toggle {
+    display: flex !important;
+  }
+}
