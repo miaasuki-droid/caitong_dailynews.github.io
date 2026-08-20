@@ -1252,6 +1252,12 @@ body {
   font-size: 26px;
 }
 
+.review-date-line {
+  margin: 5px 0 0;
+  color: #7a8089;
+  font-size: 12px;
+}
+
 .review-header-actions {
   display: flex;
   gap: 7px;
@@ -1483,6 +1489,11 @@ body {
     font-size: 19px;
   }
 
+  .review-date-line {
+    margin-top: 3px;
+    font-size: 11px;
+  }
+
   .dark-eyebrow {
     display: none;
   }
@@ -1599,12 +1610,18 @@ body {
 .manual-add-actions {
   margin-top: 9px;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }
 
 .manual-add-actions > button {
   min-width: 110px;
+  min-height: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (max-width: 780px) {
@@ -1963,7 +1980,8 @@ body {
 
 /* 卡片/组不再依赖内部弹层 */
 .review-group {
-  overflow: visible !important;
+  overflow: hidden !important;
+  background-clip: padding-box;
 }
 
 .review-item {
@@ -1976,6 +1994,8 @@ body {
   position: relative;
   grid-template-columns: 38px 1fr auto !important;
   padding-right: 44px !important;
+  border-radius: 11px 11px 0 0;
+  background-clip: padding-box;
 }
 
 /* 旧内嵌菜单彻底禁用 */

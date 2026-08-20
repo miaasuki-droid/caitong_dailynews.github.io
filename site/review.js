@@ -38,6 +38,7 @@ const els = {
   globalNodeMenu: document.getElementById("globalNodeMenu"),
   globalNodeMenuExtra: document.getElementById("globalNodeMenuExtra"),
   reviewCloudStatus: document.getElementById("reviewCloudStatus"),
+  reviewDateLine: document.getElementById("reviewDateLine"),
 };
 
 const CIRCLED = [
@@ -56,6 +57,29 @@ function escapeHtml(value = "") {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function getBeijingDateLine() {
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    weekday: "long",
+  }).formatToParts(new Date());
+
+  const map = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${map.year}年${map.month}月${map.day}日 ${map.weekday}（北京时间）`;
+}
+
+function updateReviewDateLine() {
+  if (!els.reviewDateLine) return;
+  els.reviewDateLine.textContent = getBeijingDateLine();
 }
 
 function newId(prefix) {
@@ -1317,7 +1341,10 @@ els.copyReportButton.addEventListener(
     copyText(els.reportText.value)
 );
 
+updateReviewDateLine();
 initialLoad();
+
+setInterval(updateReviewDateLine, 60000);
 
 setInterval(
   pollCloud,
