@@ -266,18 +266,47 @@ h1 {
 
 .news-item {
   display: grid;
-  grid-template-columns: 82px 18px 1fr;
+  grid-template-columns: 94px 18px 1fr;
   gap: 0;
   min-height: 86px;
 }
 
 .news-time {
-  padding-top: 21px;
+  padding-top: 18px;
   color: #7c828b;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   text-align: right;
   padding-right: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.news-time-main {
+  color: #7c828b;
+  line-height: 1.2;
+}
+
+.news-time-date {
+  color: #9aa0a9;
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.news-time-main {
+  display: block;
+  line-height: 1.2;
+}
+
+.news-time-date {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #8e94a0;
 }
 
 .rail {
@@ -450,12 +479,18 @@ footer {
   .action-button { width: 100%; }
 
   .news-item {
-    grid-template-columns: 56px 15px 1fr;
+    grid-template-columns: 72px 15px 1fr;
   }
 
   .news-time {
     font-size: 12px;
+    padding-top: 16px;
     padding-right: 8px;
+    gap: 2px;
+  }
+
+  .news-time-date {
+    font-size: 10px;
   }
 
   .rail::before { left: 7px; }
@@ -1252,11 +1287,6 @@ body {
   font-size: 26px;
 }
 
-.review-date-line {
-  margin: 5px 0 0;
-  color: #7a8089;
-  font-size: 12px;
-}
 
 .review-header-actions {
   display: flex;
@@ -1489,10 +1519,6 @@ body {
     font-size: 19px;
   }
 
-  .review-date-line {
-    margin-top: 3px;
-    font-size: 11px;
-  }
 
   .dark-eyebrow {
     display: none;

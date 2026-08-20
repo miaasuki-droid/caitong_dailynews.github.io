@@ -79,6 +79,34 @@ function getDefaultEdition() {
   return getBeijingHour() >= 14 ? "evening" : "morning";
 }
 
+function formatTimelineTime(iso, fallback = "") {
+  if (!iso) return fallback || "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return fallback || "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
+function formatTimelineDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "long",
+  }).formatToParts(d);
+  const map = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return `${map.year}/${Number(map.month)}/${Number(map.day)} ${map.weekday}`;
+}
+
 function workspaceSnapshot() {
   return {
     schemaVersion: 1,
@@ -252,7 +280,10 @@ function itemHtml(item) {
       class="news-item score-${Math.min(score, 3)} ${selected ? "is-selected" : ""}"
       data-news-id="${escapeHtml(String(item.id))}"
     >
-      <time class="news-time">${escapeHtml(item.time || "")}</time>
+      <time class="news-time">
+        <span class="news-time-main">${escapeHtml(formatTimelineTime(item.datetime, item.time || ""))}</span>
+        <span class="news-time-date">${escapeHtml(formatTimelineDate(item.datetime))}</span>
+      </time>
       <div class="rail"><span class="dot" aria-hidden="true"></span></div>
       <div class="news-card">
         <p class="news-content">${escapeHtml(item.content || item.title || "（无正文）")}</p>
