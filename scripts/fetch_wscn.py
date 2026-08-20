@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-"""
-抓取华尔街见闻「要闻 / 全球」频道的今日快讯，并输出给 GitHub Pages 使用的 JSON。
-
-数据接口是华尔街见闻网页前端使用的内部接口（非官方公开文档）：
-https://api-one.wallstcn.com/apiv1/content/lives
-
-当前频道：
-global-channel = https://wallstreetcn.com/live/global
-"""
-
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import re
@@ -25,9 +16,15 @@ from typing import Any
 API_BASE = "https://api-one.wallstcn.com/apiv1/content/lives"
 CHANNEL = "global-channel"
 CST = timezone(timedelta(hours=8))
-OUTPUT = Path(__file__).resolve().parents[1] / "site" / "data" / "latest.json"
+
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT = ROOT / "site" / "data" / "latest.json"
+CACHE_FILE = ROOT / "cache" / "news_history.json"
+
 PER_PAGE = 50
-MAX_PAGES = 30
+MAX_PAGES = 40
+FETCH_WINDOW_HOURS = 24
+RETENTION_DAYS = 7
 
 HEADERS = {
     "User-Agent": (
@@ -98,14 +95,16 @@ def parse_item(item: dict[str, Any]) -> dict[str, Any]:
             "uri": article_raw.get("uri") or "",
         }
 
-    images = []
-    for image in item.get("images") or []:
-        uri = image.get("uri")
-        if uri:
-            images.append(uri)
+    images = [
+        image.get("uri")
+        for image in (item.get("images") or [])
+        if image.get("uri")
+    ]
 
     live_id = item.get("id")
-    uri = item.get("uri") or (f"https://wallstreetcn.com/livenews/{live_id}" if live_id else "")
+    uri = item.get("uri") or (
+        f"https://wallstreetcn.com/livenews/{live_id}" if live_id else ""
+    )
 
     return {
         "id": live_id,
@@ -121,40 +120,59 @@ def parse_item(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def collect_today() -> list[dict[str, Any]]:
+def item_key(item: dict[str, Any]) -> str:
+    if item.get("id") is not None:
+        return f"id:{item['id']}"
+
+    basis = "|".join(
+        [
+            str(item.get("display_time") or ""),
+            str(item.get("title") or ""),
+            str(item.get("content") or ""),
+        ]
+    )
+    return "hash:" + hashlib.sha256(basis.encode("utf-8")).hexdigest()
+
+
+def collect_last_24h() -> list[dict[str, Any]]:
     now = datetime.now(CST)
-    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff = now - timedelta(hours=FETCH_WINDOW_HOURS)
 
     results: list[dict[str, Any]] = []
-    seen: set[Any] = set()
+    seen: set[str] = set()
     cursor = None
 
     for _ in range(MAX_PAGES):
-        items, next_cursor = fetch_page(cursor)
-        if not items:
+        raw_items, next_cursor = fetch_page(cursor)
+        if not raw_items:
             break
 
-        reached_previous_day = False
+        reached_cutoff = False
 
-        for raw in items:
+        for raw in raw_items:
             ts = int(raw.get("display_time") or 0)
             if not ts:
                 continue
 
             dt = datetime.fromtimestamp(ts, tz=CST)
-            if dt < start:
-                reached_previous_day = True
+
+            if dt < cutoff:
+                reached_cutoff = True
                 break
+
             if dt > now + timedelta(minutes=5):
                 continue
 
-            item_id = raw.get("id")
-            if item_id in seen:
-                continue
-            seen.add(item_id)
-            results.append(parse_item(raw))
+            parsed = parse_item(raw)
+            key = item_key(parsed)
 
-        if reached_previous_day or not next_cursor:
+            if key in seen:
+                continue
+
+            seen.add(key)
+            results.append(parsed)
+
+        if reached_cutoff or not next_cursor:
             break
 
         cursor = next_cursor
@@ -163,13 +181,78 @@ def collect_today() -> list[dict[str, Any]]:
     return results
 
 
+def load_history() -> list[dict[str, Any]]:
+    if not CACHE_FILE.exists():
+        return []
+
+    try:
+        payload = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            return payload.get("items") or []
+        if isinstance(payload, list):
+            return payload
+    except Exception:
+        pass
+
+    return []
+
+
+def merge_history(
+    old_items: list[dict[str, Any]],
+    fresh_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    now = datetime.now(CST)
+    retention_cutoff = int((now - timedelta(days=RETENTION_DAYS)).timestamp())
+
+    merged: dict[str, dict[str, Any]] = {}
+
+    for item in old_items:
+        if int(item.get("display_time") or 0) >= retention_cutoff:
+            merged[item_key(item)] = item
+
+    for item in fresh_items:
+        if int(item.get("display_time") or 0) >= retention_cutoff:
+            merged[item_key(item)] = item
+
+    items = list(merged.values())
+    items.sort(key=lambda x: x.get("display_time", 0), reverse=True)
+    return items
+
+
 def main() -> int:
     now = datetime.now(CST)
+
     try:
-        items = collect_today()
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, RuntimeError, json.JSONDecodeError) as exc:
+        fresh_items = collect_last_24h()
+    except (
+        urllib.error.URLError,
+        urllib.error.HTTPError,
+        TimeoutError,
+        RuntimeError,
+        json.JSONDecodeError,
+    ) as exc:
         print(f"抓取失败：{exc}", file=sys.stderr)
         return 1
+
+    if not fresh_items:
+        print("警告：近24小时返回 0 条数据，终止部署以保留上一次成功版本。", file=sys.stderr)
+        return 2
+
+    history_items = merge_history(load_history(), fresh_items)
+
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_FILE.write_text(
+        json.dumps(
+            {
+                "generated_at": now.isoformat(),
+                "retention_days": RETENTION_DAYS,
+                "items": history_items,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     payload = {
         "source": "华尔街见闻",
@@ -178,19 +261,24 @@ def main() -> int:
         "date": now.strftime("%Y-%m-%d"),
         "timezone": "Asia/Shanghai",
         "generated_at": now.isoformat(),
-        "count": len(items),
-        "items": items,
+        "window_hours": FETCH_WINDOW_HOURS,
+        "retention_days": RETENTION_DAYS,
+        "count": len(fresh_items),
+        "history_count": len(history_items),
+        "items": fresh_items,
+        "history_items": history_items,
     }
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"已写入 {OUTPUT}：{len(items)} 条，日期 {payload['date']}")
+    OUTPUT.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
-    # 如果突然一条也拿不到，让 Action 失败，避免把正常页面覆盖成空白。
-    if not items:
-        print("警告：今日返回 0 条数据，终止部署以保留上一次成功版本。", file=sys.stderr)
-        return 2
-
+    print(
+        f"已写入 {OUTPUT}：近24小时 {len(fresh_items)} 条；"
+        f"近{RETENTION_DAYS}天缓存 {len(history_items)} 条"
+    )
     return 0
 
 
