@@ -39,7 +39,15 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Fetch today's WSCN live news
+      - name: Restore rolling news cache
+        uses: actions/cache@v4
+        with:
+          path: cache/news_history.json
+          key: wscn-history-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            wscn-history-${{ runner.os }}-
+
+      - name: Fetch last 24 hours of WSCN live news
         run: python scripts/fetch_wscn.py
 
       - name: Configure Pages
