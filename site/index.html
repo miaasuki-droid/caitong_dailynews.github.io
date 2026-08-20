@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light" />
   <title>今日全球快讯</title>
   <meta name="description" content="财通固收早晚报快讯筛选工具" />
-  <link rel="stylesheet" href="./styles.css?v=340" />
+  <link rel="stylesheet" href="./styles.css?v=410" />
 </head>
 <body>
   <header class="topbar">
@@ -26,9 +26,20 @@
         <span class="label">更新时间</span>
         <strong id="updatedText">—</strong>
       </div>
+
       <div class="search-box">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/>
+        </svg>
         <input id="searchInput" type="search" placeholder="搜索关键词，例如：美联储、国债、人民币" />
+      </div>
+
+      <div class="cloud-box">
+        <span class="label">共享工作区</span>
+        <div class="cloud-row">
+          <span id="cloudStatus" class="cloud-status">正在连接…</span>
+          <button id="cloudReconnectButton" class="cloud-reconnect-button" type="button">重连</button>
+        </div>
       </div>
     </section>
 
@@ -41,7 +52,8 @@
         <div class="selection-status">
           <span class="label">早晚报素材</span>
           <strong id="selectedCount">已选 0 条</strong>
-          <span id="selectedBreakdown" class="selection-breakdown">国内 0 · 国外 0</span>
+          <span id="selectedBreakdown" class="selection-breakdown">国内 0 · 国外 0 · 自选 0</span>
+          <button id="clearManualButton" class="clear-manual-button" type="button">清空自选</button>
         </div>
         <div class="edition-control">
           <span class="label">报告类型</span>
@@ -85,6 +97,8 @@
       </button>
     </div>
 
-  <script src="./app.js?v=340"></script>
+  <script src="./cloud-config.js?v=410"></script>
+  <script src="./cloud.js?v=410"></script>
+  <script src="./app.js?v=410"></script>
 </body>
 </html>

@@ -2241,3 +2241,227 @@ body {
     width: 50px;
   }
 }
+
+
+/* ===== v4.0：本机账号 / 自选计数 / 分组清空与重置 ===== */
+
+.simple-toolbar {
+  grid-template-columns: 180px minmax(260px, 1fr) 220px !important;
+}
+
+.account-box {
+  min-height: 48px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.account-box .label {
+  margin-bottom: 3px;
+  font-size: 10px;
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
+.account-select {
+  min-width: 0;
+  height: 29px;
+  padding: 0 7px;
+  border: 1px solid #dde0e5;
+  border-radius: 7px;
+  background: #fff;
+  color: #292d33;
+  font: inherit;
+  font-size: 12px;
+}
+
+.account-add-button {
+  height: 29px;
+  padding: 0 8px;
+  border: 1px solid #dde0e5;
+  border-radius: 7px;
+  background: #f7f8fa;
+  color: #5d636d;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.clear-manual-button {
+  margin-top: 7px;
+  padding: 4px 8px;
+  border: 1px solid #e0e2e6;
+  border-radius: 7px;
+  background: #fff;
+  color: #787e87;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.clear-manual-button:disabled {
+  opacity: .42;
+  cursor: default;
+}
+
+.review-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.review-account-badge {
+  padding: 7px 9px;
+  border: 1px solid #e0e2e6;
+  border-radius: 8px;
+  background: #f8f9fa;
+  color: #666c76;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.review-actions-top {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .simple-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 780px) {
+  .account-box {
+    min-height: 44px;
+  }
+
+  .account-row {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  .account-select,
+  .account-add-button {
+    height: 34px;
+    font-size: 12px;
+  }
+
+  .selection-breakdown {
+    line-height: 1.6;
+  }
+
+  .clear-manual-button {
+    min-height: 34px;
+    font-size: 12px;
+  }
+
+  .review-actions-top {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .review-actions-top .primary-action {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .review-header-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    width: 100%;
+  }
+
+  .review-account-badge {
+    text-align: center;
+  }
+}
+
+
+/* ===== v4.1 cloud：单一共享工作区 ===== */
+
+.simple-toolbar {
+  grid-template-columns: 180px minmax(260px, 1fr) 210px !important;
+}
+
+.cloud-box {
+  min-height: 48px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.cloud-box .label {
+  margin-bottom: 3px;
+  font-size: 10px;
+}
+
+.cloud-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.cloud-status {
+  min-width: 0;
+  color: #5f6570;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cloud-status[data-kind="success"] {
+  color: #2f6b4d;
+}
+
+.cloud-status[data-kind="warning"] {
+  color: #8a671e;
+}
+
+.cloud-status[data-kind="error"] {
+  color: #a33c34;
+}
+
+.cloud-reconnect-button {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #dde0e5;
+  border-radius: 7px;
+  background: #f7f8fa;
+  color: #5d636d;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .simple-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 780px) {
+  .cloud-box {
+    min-height: 42px;
+  }
+
+  .cloud-status {
+    font-size: 11px;
+  }
+}

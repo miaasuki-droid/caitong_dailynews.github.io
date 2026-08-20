@@ -2,11 +2,14 @@ const state = {
   data: null,
   date: "",
   edition: "morning",
+  selections: {},
   boards: { domestic: [], foreign: [] },
-  initialBoards: null,
+  groupResetBaseline: null,
   expandedItems: new Set(),
   pendingGroupItem: null,
   activeNodeMenu: null,
+  cloudVersion: 0,
+  applyingRemote: false,
 };
 
 const els = {
@@ -17,7 +20,8 @@ const els = {
   reviewCount: document.getElementById("reviewCount"),
   newDomesticGroupButton: document.getElementById("newDomesticGroupButton"),
   newForeignGroupButton: document.getElementById("newForeignGroupButton"),
-  resetButton: document.getElementById("resetButton"),
+  clearGroupsButton: document.getElementById("clearGroupsButton"),
+  resetGroupsButton: document.getElementById("resetGroupsButton"),
   previewButton: document.getElementById("previewButton"),
   reportPanel: document.getElementById("reportPanel"),
   reportHeadingText: document.getElementById("reportHeadingText"),
@@ -33,6 +37,7 @@ const els = {
   createGroupForItemButton: document.getElementById("createGroupForItemButton"),
   globalNodeMenu: document.getElementById("globalNodeMenu"),
   globalNodeMenuExtra: document.getElementById("globalNodeMenuExtra"),
+  reviewCloudStatus: document.getElementById("reviewCloudStatus"),
 };
 
 const CIRCLED = [
@@ -49,30 +54,57 @@ function escapeHtml(value = "") {
     .replaceAll("'", "&#039;");
 }
 
-function selectionKey(date) {
-  return `wscn-report-selections:${date}`;
-}
-
-function editionKey(date) {
-  return `wscn-report-edition:${date}`;
-}
-
-function reviewStateKey(date) {
-  return `wscn-review-layout:${date}`;
-}
-
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 function newId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }
 
 function normalizeNewsText(value) {
   return String(value || "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function sourceItems() {
+  if (!state.data) return [];
+
+  if (
+    Array.isArray(state.data.history_items) &&
+    state.data.history_items.length
+  ) {
+    return state.data.history_items;
+  }
+
+  return state.data.items || [];
+}
+
+function workspaceSnapshot() {
+  return {
+    schemaVersion: 1,
+    selections: state.selections,
+    edition: state.edition,
+    reviewLayout: state.boards,
+  };
+}
+
+function setCloudStatus({ text, kind }) {
+  els.reviewCloudStatus.textContent = text;
+  els.reviewCloudStatus.dataset.kind = kind || "neutral";
+}
+
+async function persistWorkspace() {
+  if (state.applyingRemote) return;
+
+  const result = await window.WSCNCloud.saveWorkspace(
+    workspaceSnapshot()
+  );
+
+  state.cloudVersion = result.version || state.cloudVersion;
 }
 
 function makeItem(raw) {
@@ -83,6 +115,7 @@ function makeItem(raw) {
     content: raw.content || raw.title || "",
     title: raw.title || "",
     time: raw.time || "",
+    display_time: raw.display_time || 0,
   };
 }
 
@@ -107,23 +140,12 @@ function makeGroup(title = "新建组") {
   };
 }
 
-function saveLayout() {
-  try {
-    localStorage.setItem(reviewStateKey(state.date), JSON.stringify(state.boards));
-  } catch (_) {}
-}
-
-function loadSavedLayout() {
-  try {
-    const raw = localStorage.getItem(reviewStateKey(state.date));
-    return raw ? JSON.parse(raw) : null;
-  } catch (_) {
-    return null;
-  }
-}
-
 function countItems(board) {
-  return board.reduce((sum, node) => sum + (node.type === "group" ? node.items.length : 1), 0);
+  return board.reduce(
+    (sum, node) =>
+      sum + (node.type === "group" ? node.items.length : 1),
+    0
+  );
 }
 
 function previewLimit() {
@@ -136,7 +158,11 @@ function previewText(item) {
   const text = normalizeNewsText(item.content);
   const limit = previewLimit();
 
-  if (!Number.isFinite(limit) || state.expandedItems.has(item.uid) || text.length <= limit) {
+  if (
+    !Number.isFinite(limit) ||
+    state.expandedItems.has(item.uid) ||
+    text.length <= limit
+  ) {
     return { text, truncated: false };
   }
 
@@ -181,7 +207,10 @@ function itemHtml(item, category, groupId = "", inGroup = false) {
         title="删除"
       >×</button>
       <div class="review-item-main">
-        <div class="review-item-meta">${escapeHtml(item.time || "")}${preview.truncated ? " · 点正文展开" : ""}</div>
+        <div class="review-item-meta">
+          ${escapeHtml(item.time || "")}
+          ${preview.truncated ? " · 点正文展开" : ""}
+        </div>
         <div
           class="review-item-content ${preview.truncated ? "is-truncated" : ""}"
           data-expand-uid="${escapeHtml(item.uid)}"
@@ -192,35 +221,51 @@ function itemHtml(item, category, groupId = "", inGroup = false) {
 }
 
 function boardHtml(category) {
-  return state.boards[category].map((node) => {
-    if (node.type !== "group") return itemHtml(node, category);
+  return state.boards[category]
+    .map((node) => {
+      if (node.type !== "group") {
+        return itemHtml(node, category);
+      }
 
-    return `
-      <section
-        class="review-group"
-        data-uid="${escapeHtml(node.uid)}"
-        data-category="${category}"
-        data-node-type="group"
-      >
-        <div class="group-head">
-          ${menuHtml(node.uid, category, "group")}
-          <input class="group-title-input" data-group-id="${escapeHtml(node.uid)}" value="${escapeHtml(node.title)}" />
-          <span class="group-count">${node.items.length} 条</span>
-          <button
-            type="button"
-            class="corner-delete-button delete-group-corner"
-            data-delete-group="${escapeHtml(node.uid)}"
-            data-category="${category}"
-            aria-label="删除组"
-            title="删除组"
-          >×</button>
-        </div>
-        <div class="group-items">
-          ${node.items.map((item) => itemHtml(item, category, node.uid, true)).join("")}
-          ${node.items.length === 0 ? '<div class="empty-group-hint">暂无新闻，可从新闻“...”菜单选择“分组”加入</div>' : ""}
-        </div>
-      </section>`;
-  }).join("");
+      return `
+        <section
+          class="review-group"
+          data-uid="${escapeHtml(node.uid)}"
+          data-category="${category}"
+          data-node-type="group"
+        >
+          <div class="group-head">
+            ${menuHtml(node.uid, category, "group")}
+            <input
+              class="group-title-input"
+              data-group-id="${escapeHtml(node.uid)}"
+              value="${escapeHtml(node.title)}"
+            />
+            <span class="group-count">${node.items.length} 条</span>
+            <button
+              type="button"
+              class="corner-delete-button delete-group-corner"
+              data-delete-group="${escapeHtml(node.uid)}"
+              data-category="${category}"
+              aria-label="删除组"
+              title="删除组"
+            >×</button>
+          </div>
+          <div class="group-items">
+            ${node.items
+              .map((item) =>
+                itemHtml(item, category, node.uid, true)
+              )
+              .join("")}
+            ${
+              node.items.length === 0
+                ? '<div class="empty-group-hint">暂无新闻，可从新闻“...”菜单选择“分组”加入</div>'
+                : ""
+            }
+          </div>
+        </section>`;
+    })
+    .join("");
 }
 
 function render() {
@@ -232,7 +277,11 @@ function render() {
 
   els.domesticCount.textContent = `${domesticCount} 条`;
   els.foreignCount.textContent = `${foreignCount} 条`;
-  els.reviewCount.textContent = `共 ${domesticCount + foreignCount} 条 · ${state.edition === "evening" ? "晚报" : "早报"}`;
+
+  els.reviewCount.textContent =
+    `共 ${domesticCount + foreignCount} 条 · ${
+      state.edition === "evening" ? "晚报" : "早报"
+    }`;
 }
 
 function locateNode(uid) {
@@ -243,11 +292,21 @@ function locateNode(uid) {
       const node = board[i];
 
       if (node.uid === uid) {
-        return { category, parent: board, index: i, node, group: null, groupIndex: -1 };
+        return {
+          category,
+          parent: board,
+          index: i,
+          node,
+          group: null,
+          groupIndex: -1,
+        };
       }
 
       if (node.type === "group") {
-        const j = node.items.findIndex((item) => item.uid === uid);
+        const j = node.items.findIndex(
+          (item) => item.uid === uid
+        );
+
         if (j >= 0) {
           return {
             category,
@@ -265,72 +324,95 @@ function locateNode(uid) {
   return null;
 }
 
-function moveNodePosition(uid, action) {
+async function moveNodePosition(uid, action) {
   const found = locateNode(uid);
   if (!found) return;
 
   let targetIndex = found.index;
 
   if (action === "move-top") targetIndex = 0;
-  else if (action === "move-up") targetIndex = Math.max(0, found.index - 1);
-  else if (action === "move-down") targetIndex = Math.min(found.parent.length - 1, found.index + 1);
-  else if (action === "move-bottom") targetIndex = found.parent.length - 1;
-  else return;
+  else if (action === "move-up") {
+    targetIndex = Math.max(0, found.index - 1);
+  } else if (action === "move-down") {
+    targetIndex = Math.min(
+      found.parent.length - 1,
+      found.index + 1
+    );
+  } else if (action === "move-bottom") {
+    targetIndex = found.parent.length - 1;
+  } else {
+    return;
+  }
 
   if (targetIndex === found.index) return;
 
   const [node] = found.parent.splice(found.index, 1);
   found.parent.splice(targetIndex, 0, node);
 
-  saveLayout();
   render();
+  await persistWorkspace();
 }
 
-function moveUpDown(uid, direction) {
-  moveNodePosition(uid, direction < 0 ? "move-up" : "move-down");
-}
-
-function deleteItem(uid) {
+async function deleteItem(uid) {
   const found = locateNode(uid);
   if (!found || found.node.type !== "item") return;
 
-  found.parent.splice(found.index, 1);
+  const item = found.parent.splice(found.index, 1)[0];
+
+  // 删除来源新闻时，同步取消第一页选择，
+  // 否则下次打开整理页会重新出现。
+  if (item.newsId) {
+    delete state.selections[String(item.newsId)];
+  }
+
   state.expandedItems.delete(uid);
-  saveLayout();
+
   render();
+  await persistWorkspace();
 }
 
-function deleteGroup(category, groupId) {
+async function deleteGroup(category, groupId) {
   const board = state.boards[category];
-  const index = board.findIndex((node) => node.uid === groupId && node.type === "group");
+
+  const index = board.findIndex(
+    (node) => node.uid === groupId && node.type === "group"
+  );
+
   if (index < 0) return;
 
   const group = board[index];
   board.splice(index, 1, ...group.items);
-  saveLayout();
+
   render();
+  await persistWorkspace();
 }
 
-function ungroupItem(uid) {
+async function ungroupItem(uid) {
   const found = locateNode(uid);
   if (!found || !found.group) return;
 
   const item = found.parent.splice(found.index, 1)[0];
   const board = state.boards[found.category];
-  const groupIndex = board.findIndex((node) => node.uid === found.group.uid);
+
+  const groupIndex = board.findIndex(
+    (node) => node.uid === found.group.uid
+  );
 
   board.splice(groupIndex + 1, 0, item);
-  saveLayout();
+
   render();
+  await persistWorkspace();
 }
 
-function moveItemToGroup(uid, category, groupId) {
+async function moveItemToGroup(uid, category, groupId) {
   const found = locateNode(uid);
   if (!found || found.node.type !== "item") return;
 
   const targetGroup = state.boards[category].find(
-    (node) => node.type === "group" && node.uid === groupId
+    (node) =>
+      node.type === "group" && node.uid === groupId
   );
+
   if (!targetGroup) return;
 
   if (found.group?.uid === groupId) {
@@ -342,44 +424,53 @@ function moveItemToGroup(uid, category, groupId) {
   targetGroup.items.push(item);
 
   closeGroupPicker();
-  saveLayout();
   render();
+  await persistWorkspace();
 }
 
-
-function switchItemCategory(uid) {
+async function switchItemCategory(uid) {
   const found = locateNode(uid);
   if (!found || found.node.type !== "item") return;
 
-  const targetCategory = found.category === "domestic" ? "foreign" : "domestic";
-  const [item] = found.parent.splice(found.index, 1);
+  const targetCategory =
+    found.category === "domestic" ? "foreign" : "domestic";
 
-  // 如果原来在组内，切换国内/国外时自动脱离原组，
-  // 作为普通新闻放到另一栏末尾。
+  const [item] = found.parent.splice(found.index, 1);
   state.boards[targetCategory].push(item);
 
-  saveLayout();
+  if (item.newsId) {
+    state.selections[String(item.newsId)] =
+      targetCategory;
+  }
+
   render();
+  await persistWorkspace();
 }
 
-function addGroup(category, presetTitle = "新建组") {
+async function addGroup(category, presetTitle = "新建组") {
   const title = window.prompt("组标题", presetTitle);
   if (title === null) return null;
 
   const group = makeGroup(title.trim() || "新建组");
   state.boards[category].push(group);
-  saveLayout();
+
   render();
+  await persistWorkspace();
+
   return group;
 }
 
 function openGroupPicker(uid, category) {
   state.pendingGroupItem = { uid, category };
 
-  const groups = state.boards[category].filter((node) => node.type === "group");
+  const groups = state.boards[category].filter(
+    (node) => node.type === "group"
+  );
 
   els.groupPickerList.innerHTML = groups.length
-    ? groups.map((group) => `
+    ? groups
+        .map(
+          (group) => `
         <button
           type="button"
           class="group-picker-option"
@@ -388,7 +479,9 @@ function openGroupPicker(uid, category) {
           <span>${escapeHtml(group.title || "未命名组")}</span>
           <small>${group.items.length} 条</small>
         </button>
-      `).join("")
+      `
+        )
+        .join("")
     : '<div class="group-picker-empty">当前还没有组，可以直接新建。</div>';
 
   els.groupPickerOverlay.hidden = false;
@@ -404,17 +497,28 @@ function closeGroupPicker() {
 function closeGlobalNodeMenu() {
   els.globalNodeMenu.hidden = true;
 
-  document.querySelectorAll(".node-menu-button[aria-expanded='true']").forEach((button) => {
-    button.setAttribute("aria-expanded", "false");
-  });
+  document
+    .querySelectorAll(
+      ".node-menu-button[aria-expanded='true']"
+    )
+    .forEach((button) => {
+      button.setAttribute("aria-expanded", "false");
+    });
 
   state.activeNodeMenu = null;
 }
 
-function buildGlobalMenuExtra(nodeType, inGroup, category) {
+function buildGlobalMenuExtra(
+  nodeType,
+  inGroup,
+  category
+) {
   if (nodeType !== "item") return "";
 
-  const switchLabel = category === "domestic" ? "切到国外" : "切到国内";
+  const switchLabel =
+    category === "domestic"
+      ? "切到国外"
+      : "切到国内";
 
   const parts = [
     '<button type="button" class="global-menu-extra-action" data-action="group">分组</button>',
@@ -422,7 +526,9 @@ function buildGlobalMenuExtra(nodeType, inGroup, category) {
   ];
 
   if (inGroup) {
-    parts.push('<button type="button" class="global-menu-extra-action" data-action="ungroup">移出组</button>');
+    parts.push(
+      '<button type="button" class="global-menu-extra-action" data-action="ungroup">移出组</button>'
+    );
   }
 
   return parts.join("");
@@ -442,16 +548,40 @@ function positionGlobalNodeMenu(button) {
   const menuRect = menu.getBoundingClientRect();
 
   let left = rect.left;
-  if (left + menuRect.width > window.innerWidth - margin) {
-    left = window.innerWidth - menuRect.width - margin;
+
+  if (
+    left + menuRect.width >
+    window.innerWidth - margin
+  ) {
+    left =
+      window.innerWidth -
+      menuRect.width -
+      margin;
   }
+
   left = Math.max(margin, left);
 
   let top = rect.bottom + gap;
-  if (top + menuRect.height > window.innerHeight - margin) {
-    top = rect.top - menuRect.height - gap;
+
+  if (
+    top + menuRect.height >
+    window.innerHeight - margin
+  ) {
+    top =
+      rect.top -
+      menuRect.height -
+      gap;
   }
-  top = Math.max(margin, Math.min(top, window.innerHeight - menuRect.height - margin));
+
+  top = Math.max(
+    margin,
+    Math.min(
+      top,
+      window.innerHeight -
+        menuRect.height -
+        margin
+    )
+  );
 
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
@@ -464,55 +594,198 @@ function openGlobalNodeMenu(button) {
   const uid = button.dataset.menuUid;
   const category = button.dataset.menuCategory;
   const nodeType = button.dataset.menuType;
-  const inGroup = button.dataset.menuInGroup === "true";
+  const inGroup =
+    button.dataset.menuInGroup === "true";
 
-  state.activeNodeMenu = { uid, category, nodeType, inGroup };
-  els.globalNodeMenuExtra.innerHTML = buildGlobalMenuExtra(nodeType, inGroup, category);
+  state.activeNodeMenu = {
+    uid,
+    category,
+    nodeType,
+    inGroup,
+  };
+
+  els.globalNodeMenuExtra.innerHTML =
+    buildGlobalMenuExtra(
+      nodeType,
+      inGroup,
+      category
+    );
 
   button.setAttribute("aria-expanded", "true");
   positionGlobalNodeMenu(button);
 }
 
-function addManualNews(category) {
-  const content = els.manualNewsInput.value.trim();
+async function addManualNews(category) {
+  const content =
+    els.manualNewsInput.value.trim();
+
   if (!content) {
     els.manualNewsInput.focus();
     return;
   }
 
-  state.boards[category].push(makeManualItem(content));
+  state.boards[category].push(
+    makeManualItem(content)
+  );
+
   els.manualNewsInput.value = "";
-  saveLayout();
+
   render();
+  await persistWorkspace();
+}
+
+async function flattenGroups() {
+  for (const category of ["domestic", "foreign"]) {
+    const flat = [];
+
+    for (const node of state.boards[category]) {
+      if (node.type === "group") {
+        flat.push(...(node.items || []));
+      } else {
+        flat.push(node);
+      }
+    }
+
+    state.boards[category] = flat;
+  }
+
+  render();
+  await persistWorkspace();
+}
+
+function allCurrentItemsByCategory() {
+  const result = {
+    domestic: new Map(),
+    foreign: new Map(),
+  };
+
+  for (const category of ["domestic", "foreign"]) {
+    for (const node of state.boards[category]) {
+      if (node.type === "group") {
+        for (const item of node.items || []) {
+          result[category].set(item.uid, item);
+        }
+      } else {
+        result[category].set(node.uid, node);
+      }
+    }
+  }
+
+  return result;
+}
+
+async function restoreGroupsFromBaseline() {
+  if (!state.groupResetBaseline) return;
+
+  const current = allCurrentItemsByCategory();
+
+  for (const category of ["domestic", "foreign"]) {
+    const baseline =
+      state.groupResetBaseline[category] || [];
+
+    const rebuilt = [];
+    const placed = new Set();
+
+    for (const node of baseline) {
+      if (node.type === "group") {
+        const group = {
+          type: "group",
+          uid: node.uid,
+          title: node.title,
+          items: [],
+        };
+
+        for (const baselineItem of node.items || []) {
+          const currentItem =
+            current[category].get(
+              baselineItem.uid
+            );
+
+          if (currentItem) {
+            group.items.push(currentItem);
+            placed.add(currentItem.uid);
+          }
+        }
+
+        rebuilt.push(group);
+      } else {
+        const currentItem =
+          current[category].get(node.uid);
+
+        if (currentItem) {
+          rebuilt.push(currentItem);
+          placed.add(currentItem.uid);
+        }
+      }
+    }
+
+    for (const item of current[category].values()) {
+      if (!placed.has(item.uid)) {
+        rebuilt.push(item);
+      }
+    }
+
+    state.boards[category] = rebuilt;
+  }
+
+  render();
+  await persistWorkspace();
 }
 
 function blockForNode(node, numberRef) {
   if (node.type !== "group") {
-    const block = `（${numberRef.value}）${normalizeNewsText(node.content)}`;
+    const block =
+      `（${numberRef.value}）${normalizeNewsText(
+        node.content
+      )}`;
+
     numberRef.value += 1;
     return block;
   }
 
-  const header = `（${numberRef.value}）【${normalizeNewsText(node.title || "未命名组")}】`;
+  const header =
+    `（${numberRef.value}）【${normalizeNewsText(
+      node.title || "未命名组"
+    )}】`;
+
   numberRef.value += 1;
 
   if (!node.items.length) return header;
 
-  const children = node.items.map((item, idx) => {
-    const marker = CIRCLED[idx] || `${idx + 1}.`;
-    return `${marker} ${normalizeNewsText(item.content)}`;
-  });
+  const children = node.items.map(
+    (item, idx) => {
+      const marker =
+        CIRCLED[idx] || `${idx + 1}.`;
+
+      return `${marker} ${normalizeNewsText(
+        item.content
+      )}`;
+    }
+  );
 
   return `${header}\n${children.join("\n\n")}`;
 }
 
 function buildReport() {
-  const [, month, day] = state.date.split("-").map(Number);
-  const editionText = state.edition === "evening" ? "晚报" : "早报";
+  const [, month, day] =
+    state.date.split("-").map(Number);
+
+  const editionText =
+    state.edition === "evening"
+      ? "晚报"
+      : "早报";
+
   const numberRef = { value: 1 };
 
-  const domesticBlocks = state.boards.domestic.map((node) => blockForNode(node, numberRef));
-  const foreignBlocks = state.boards.foreign.map((node) => blockForNode(node, numberRef));
+  const domesticBlocks =
+    state.boards.domestic.map((node) =>
+      blockForNode(node, numberRef)
+    );
+
+  const foreignBlocks =
+    state.boards.foreign.map((node) =>
+      blockForNode(node, numberRef)
+    );
 
   const parts = [
     `${month}月${day}日利率${editionText} 重要事件回顾（财通固收·隋修平团队）`,
@@ -521,13 +794,19 @@ function buildReport() {
   ];
 
   if (domesticBlocks.length) {
-    parts.push("", domesticBlocks.join("\n\n"));
+    parts.push(
+      "",
+      domesticBlocks.join("\n\n")
+    );
   }
 
   parts.push("", "国外新闻：");
 
   if (foreignBlocks.length) {
-    parts.push("", foreignBlocks.join("\n\n"));
+    parts.push(
+      "",
+      foreignBlocks.join("\n\n")
+    );
   }
 
   parts.push(
@@ -536,109 +815,244 @@ function buildReport() {
     "免责声明：信息来自公开信息整理"
   );
 
-  return parts.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return parts
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
-    const old = els.copyReportButton.textContent;
-    els.copyReportButton.textContent = "已复制";
+
+    const old =
+      els.copyReportButton.textContent;
+
+    els.copyReportButton.textContent =
+      "已复制";
+
     setTimeout(() => {
-      els.copyReportButton.textContent = old;
+      els.copyReportButton.textContent =
+        old;
     }, 1400);
   } catch (_) {
     window.prompt("复制以下内容：", text);
   }
 }
 
-async function init() {
-  try {
-    const res = await fetch(`./data/latest.json?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+function reconcileLayoutWithSelections(
+  layout,
+  selections
+) {
+  const selectedRaw = sourceItems().filter(
+    (item) => selections[String(item.id)]
+  );
 
-    const data = await res.json();
-    state.data = data;
-    state.date = data.date;
+  const selectedMap = new Map(
+    selectedRaw.map((item) => [
+      `news-${item.id}`,
+      makeItem(item),
+    ])
+  );
 
-    const selectionRaw = localStorage.getItem(selectionKey(state.date));
-    const selections = selectionRaw ? JSON.parse(selectionRaw) : {};
-    state.edition = localStorage.getItem(editionKey(state.date)) || "morning";
-
-    const selected = data.items.filter((item) => selections[String(item.id)]);
-
-    const baseBoards = {
-      domestic: selected
-        .filter((item) => selections[String(item.id)] === "domestic")
-        .map(makeItem),
-      foreign: selected
-        .filter((item) => selections[String(item.id)] === "foreign")
-        .map(makeItem),
-    };
-
-    state.initialBoards = clone(baseBoards);
-
-    const saved = loadSavedLayout();
-
-    if (saved?.domestic && saved?.foreign) {
-      const validIds = new Set(selected.map((item) => `news-${item.id}`));
-
-      function keepSavedItem(item) {
-        return Boolean(item?.manual) ||
-          String(item?.uid || "").startsWith("manual-") ||
-          validIds.has(item?.uid);
-      }
-
-      function cleanBoard(board) {
-        return board
-          .map((node) => {
-            if (node.type === "group") {
-              node.items = (node.items || []).filter(keepSavedItem);
-              return node;
-            }
-            return keepSavedItem(node) ? node : null;
-          })
-          .filter(Boolean);
-      }
-
-      state.boards = {
-        domestic: cleanBoard(saved.domestic),
-        foreign: cleanBoard(saved.foreign),
-      };
-
-      const present = new Set();
-
-      for (const category of ["domestic", "foreign"]) {
-        for (const node of state.boards[category]) {
-          if (node.type === "group") node.items.forEach((item) => present.add(item.uid));
-          else present.add(node.uid);
-        }
-      }
-
-      for (const category of ["domestic", "foreign"]) {
-        baseBoards[category].forEach((item) => {
-          if (!present.has(item.uid)) state.boards[category].push(item);
-        });
-      }
-    } else {
-      state.boards = clone(baseBoards);
+  function keepItem(item) {
+    if (
+      item?.manual ||
+      String(item?.uid || "").startsWith("manual-")
+    ) {
+      return item;
     }
 
+    return selectedMap.get(item?.uid) || null;
+  }
+
+  function cleanBoard(board) {
+    return (board || [])
+      .map((node) => {
+        if (node.type === "group") {
+          node.items = (node.items || [])
+            .map(keepItem)
+            .filter(Boolean);
+
+          return node;
+        }
+
+        return keepItem(node);
+      })
+      .filter(Boolean);
+  }
+
+  const boards = {
+    domestic: cleanBoard(
+      clone(layout?.domestic || [])
+    ),
+    foreign: cleanBoard(
+      clone(layout?.foreign || [])
+    ),
+  };
+
+  const present = new Set();
+
+  for (const category of ["domestic", "foreign"]) {
+    for (const node of boards[category]) {
+      if (node.type === "group") {
+        for (const item of node.items || []) {
+          present.add(item.uid);
+        }
+      } else {
+        present.add(node.uid);
+      }
+    }
+  }
+
+  for (const raw of selectedRaw) {
+    const uid = `news-${raw.id}`;
+
+    if (present.has(uid)) continue;
+
+    const category =
+      selections[String(raw.id)];
+
+    if (
+      category === "domestic" ||
+      category === "foreign"
+    ) {
+      boards[category].push(makeItem(raw));
+      present.add(uid);
+    }
+  }
+
+  return boards;
+}
+
+async function initialLoad() {
+  try {
+    window.WSCNCloud.setStatusListener(
+      setCloudStatus
+    );
+
+    const res = await fetch(
+      `./data/latest.json?t=${Date.now()}`,
+      { cache: "no-store" }
+    );
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    state.data = await res.json();
+    state.date = state.data.date;
+
+    const workspace =
+      await window.WSCNCloud.loadWorkspace({
+        allowPrompt: true,
+      });
+
+    state.cloudVersion =
+      workspace.version || 0;
+
+    const normalized =
+      window.WSCNCloud.normalizeState(
+        workspace.state
+      );
+
+    state.selections =
+      normalized.selections || {};
+
+    state.edition =
+      normalized.edition === "morning" ||
+      normalized.edition === "evening"
+        ? normalized.edition
+        : "morning";
+
+    state.boards =
+      reconcileLayoutWithSelections(
+        normalized.reviewLayout,
+        state.selections
+      );
+
+    state.groupResetBaseline =
+      clone(state.boards);
+
     render();
-  } catch (err) {
+    await persistWorkspace();
+  } catch (error) {
+    console.error(error);
+
     els.reviewError.hidden = false;
-    els.reviewError.querySelector("p").textContent = `读取失败：${err.message}`;
+    els.reviewError.querySelector(
+      "p"
+    ).textContent =
+      `读取失败：${error.message}`;
   }
 }
 
-document.addEventListener("click", (event) => {
-  const menuButton = event.target.closest(".node-menu-button");
+async function pollCloud() {
+  if (document.hidden) return;
+
+  const active = document.activeElement;
+
+  if (
+    active?.classList?.contains(
+      "group-title-input"
+    ) ||
+    active === els.manualNewsInput
+  ) {
+    return;
+  }
+
+  const remote =
+    await window.WSCNCloud.refreshRemoteIfNewer();
+
+  if (!remote) return;
+
+  const version =
+    Number(remote.version || 0);
+
+  if (version <= Number(state.cloudVersion || 0)) {
+    return;
+  }
+
+  state.applyingRemote = true;
+  state.cloudVersion = version;
+
+  const normalized =
+    window.WSCNCloud.normalizeState(
+      remote.state
+    );
+
+  state.selections =
+    normalized.selections || {};
+
+  state.edition =
+    normalized.edition || state.edition;
+
+  state.boards =
+    reconcileLayoutWithSelections(
+      normalized.reviewLayout,
+      state.selections
+    );
+
+  render();
+
+  state.applyingRemote = false;
+
+  setCloudStatus({
+    text: "云端：已收到其他设备更新",
+    kind: "success",
+  });
+}
+
+document.addEventListener("click", async (event) => {
+  const menuButton =
+    event.target.closest(".node-menu-button");
 
   if (menuButton) {
     event.stopPropagation();
 
     if (
-      state.activeNodeMenu?.uid === menuButton.dataset.menuUid &&
+      state.activeNodeMenu?.uid ===
+        menuButton.dataset.menuUid &&
       !els.globalNodeMenu.hidden
     ) {
       closeGlobalNodeMenu();
@@ -649,87 +1063,148 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const menuAction = event.target.closest(".global-menu-action, .global-menu-extra-action");
+  const menuAction =
+    event.target.closest(
+      ".global-menu-action, .global-menu-extra-action"
+    );
 
   if (menuAction && state.activeNodeMenu) {
     event.stopPropagation();
 
-    const action = menuAction.dataset.action;
-    const { uid, category } = state.activeNodeMenu;
+    const action =
+      menuAction.dataset.action;
+
+    const { uid, category } =
+      state.activeNodeMenu;
 
     closeGlobalNodeMenu();
 
-    if (["move-top", "move-up", "move-down", "move-bottom"].includes(action)) {
-      moveNodePosition(uid, action);
+    if (
+      [
+        "move-top",
+        "move-up",
+        "move-down",
+        "move-bottom",
+      ].includes(action)
+    ) {
+      await moveNodePosition(uid, action);
     } else if (action === "group") {
       openGroupPicker(uid, category);
     } else if (action === "ungroup") {
-      ungroupItem(uid);
-    } else if (action === "switch-category") {
-      switchItemCategory(uid);
+      await ungroupItem(uid);
+    } else if (
+      action === "switch-category"
+    ) {
+      await switchItemCategory(uid);
     }
 
     return;
   }
 
-  const deleteItemButton = event.target.closest(".delete-item-corner");
+  const deleteItemButton =
+    event.target.closest(
+      ".delete-item-corner"
+    );
 
   if (deleteItemButton) {
     event.stopPropagation();
     closeGlobalNodeMenu();
-    deleteItem(deleteItemButton.dataset.deleteUid);
+
+    await deleteItem(
+      deleteItemButton.dataset.deleteUid
+    );
+
     return;
   }
 
-  const deleteGroupButton = event.target.closest(".delete-group-corner");
+  const deleteGroupButton =
+    event.target.closest(
+      ".delete-group-corner"
+    );
 
   if (deleteGroupButton) {
     event.stopPropagation();
     closeGlobalNodeMenu();
-    deleteGroup(deleteGroupButton.dataset.category, deleteGroupButton.dataset.deleteGroup);
+
+    await deleteGroup(
+      deleteGroupButton.dataset.category,
+      deleteGroupButton.dataset.deleteGroup
+    );
+
     return;
   }
 
-  const content = event.target.closest(".review-item-content[data-expand-uid]");
+  const content =
+    event.target.closest(
+      ".review-item-content[data-expand-uid]"
+    );
 
-  if (content && content.dataset.expandable === "true" && window.innerWidth <= 780) {
-    const uid = content.dataset.expandUid;
+  if (
+    content &&
+    content.dataset.expandable === "true" &&
+    window.innerWidth <= 780
+  ) {
+    const uid =
+      content.dataset.expandUid;
 
-    if (state.expandedItems.has(uid)) state.expandedItems.delete(uid);
-    else state.expandedItems.add(uid);
+    if (state.expandedItems.has(uid)) {
+      state.expandedItems.delete(uid);
+    } else {
+      state.expandedItems.add(uid);
+    }
 
     render();
     return;
   }
 
-  const groupOption = event.target.closest(".group-picker-option");
+  const groupOption =
+    event.target.closest(
+      ".group-picker-option"
+    );
 
-  if (groupOption && state.pendingGroupItem) {
-    moveItemToGroup(
+  if (
+    groupOption &&
+    state.pendingGroupItem
+  ) {
+    await moveItemToGroup(
       state.pendingGroupItem.uid,
       state.pendingGroupItem.category,
       groupOption.dataset.groupTarget
     );
+
     return;
   }
 
-  if (!event.target.closest("#globalNodeMenu")) {
+  if (
+    !event.target.closest(
+      "#globalNodeMenu"
+    )
+  ) {
     closeGlobalNodeMenu();
   }
 });
 
-document.addEventListener("input", (event) => {
-  const input = event.target.closest(".group-title-input");
+document.addEventListener("change", async (event) => {
+  const input =
+    event.target.closest(".group-title-input");
+
   if (!input) return;
 
-  for (const category of ["domestic", "foreign"]) {
-    const group = state.boards[category].find(
-      (node) => node.type === "group" && node.uid === input.dataset.groupId
-    );
+  for (const category of [
+    "domestic",
+    "foreign",
+  ]) {
+    const group =
+      state.boards[category].find(
+        (node) =>
+          node.type === "group" &&
+          node.uid ===
+            input.dataset.groupId
+      );
 
     if (group) {
       group.title = input.value;
-      saveLayout();
+      await persistWorkspace();
       break;
     }
   }
@@ -740,56 +1215,111 @@ window.addEventListener("resize", () => {
   render();
 });
 
-window.addEventListener("scroll", () => {
-  closeGlobalNodeMenu();
-}, { passive: true });
+window.addEventListener(
+  "scroll",
+  () => closeGlobalNodeMenu(),
+  { passive: true }
+);
 
-els.newDomesticGroupButton.addEventListener("click", () => addGroup("domestic"));
-els.newForeignGroupButton.addEventListener("click", () => addGroup("foreign"));
-els.addManualDomesticButton.addEventListener("click", () => addManualNews("domestic"));
-els.addManualForeignButton.addEventListener("click", () => addManualNews("foreign"));
+els.newDomesticGroupButton.addEventListener(
+  "click",
+  () => addGroup("domestic")
+);
 
-els.closeGroupPickerButton.addEventListener("click", closeGroupPicker);
+els.newForeignGroupButton.addEventListener(
+  "click",
+  () => addGroup("foreign")
+);
 
-els.groupPickerOverlay.addEventListener("click", (event) => {
-  if (event.target === els.groupPickerOverlay) closeGroupPicker();
-});
+els.addManualDomesticButton.addEventListener(
+  "click",
+  () => addManualNews("domestic")
+);
 
-els.createGroupForItemButton.addEventListener("click", () => {
-  if (!state.pendingGroupItem) return;
+els.addManualForeignButton.addEventListener(
+  "click",
+  () => addManualNews("foreign")
+);
 
-  const { uid, category } = state.pendingGroupItem;
-  const group = addGroup(category);
+els.clearGroupsButton.addEventListener(
+  "click",
+  flattenGroups
+);
 
-  if (group) {
-    moveItemToGroup(uid, category, group.uid);
+els.resetGroupsButton.addEventListener(
+  "click",
+  restoreGroupsFromBaseline
+);
+
+els.closeGroupPickerButton.addEventListener(
+  "click",
+  closeGroupPicker
+);
+
+els.groupPickerOverlay.addEventListener(
+  "click",
+  (event) => {
+    if (
+      event.target ===
+      els.groupPickerOverlay
+    ) {
+      closeGroupPicker();
+    }
   }
-});
+);
 
-els.resetButton.addEventListener("click", () => {
-  state.boards = clone(state.initialBoards);
+els.createGroupForItemButton.addEventListener(
+  "click",
+  async () => {
+    if (!state.pendingGroupItem) return;
 
-  try {
-    localStorage.removeItem(reviewStateKey(state.date));
-  } catch (_) {}
+    const { uid, category } =
+      state.pendingGroupItem;
 
-  state.expandedItems.clear();
-  render();
-  els.reportPanel.hidden = true;
-});
+    const group =
+      await addGroup(category);
 
-els.previewButton.addEventListener("click", () => {
-  els.reportText.value = buildReport();
-  els.reportHeadingText.textContent = state.edition === "evening" ? "晚报" : "早报";
-  els.reportPanel.hidden = false;
+    if (group) {
+      await moveItemToGroup(
+        uid,
+        category,
+        group.uid
+      );
+    }
+  }
+);
 
-  requestAnimationFrame(() => {
-    els.reportPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-});
+els.previewButton.addEventListener(
+  "click",
+  () => {
+    els.reportText.value =
+      buildReport();
 
-els.copyReportButton.addEventListener("click", () => {
-  copyText(els.reportText.value);
-});
+    els.reportHeadingText.textContent =
+      state.edition === "evening"
+        ? "晚报"
+        : "早报";
 
-init();
+    els.reportPanel.hidden = false;
+
+    requestAnimationFrame(() => {
+      els.reportPanel.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+);
+
+els.copyReportButton.addEventListener(
+  "click",
+  () =>
+    copyText(els.reportText.value)
+);
+
+initialLoad();
+
+setInterval(
+  pollCloud,
+  window.WSCNCloud.getPollIntervalMs()
+);

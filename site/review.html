@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
   <title>整理早晚报</title>
-  <link rel="stylesheet" href="./styles.css?v=340" />
+  <link rel="stylesheet" href="./styles.css?v=410" />
 </head>
 <body class="review-body">
   <header class="review-topbar">
@@ -16,6 +16,7 @@
         <h1 class="review-title">整理早晚报</h1>
       </div>
       <div class="review-header-actions">
+        <span id="reviewCloudStatus" class="review-account-badge">云端：正在连接…</span>
         <button id="newDomesticGroupButton" class="secondary-button">+ 国内组</button>
         <button id="newForeignGroupButton" class="secondary-button">+ 国外组</button>
       </div>
@@ -29,7 +30,8 @@
         <span>点击每条新闻或组左上角“...”进行上移、下移、分组或删除。手机端正文会自动缩略，点正文可展开。</span>
       </div>
       <div class="review-actions-top">
-        <button id="resetButton" class="secondary-button">恢复初始顺序</button>
+        <button id="clearGroupsButton" class="secondary-button">清空分组</button>
+        <button id="resetGroupsButton" class="secondary-button">分组重置</button>
         <button id="previewButton" class="action-button primary-action">生成文本</button>
       </div>
     </section>
@@ -99,6 +101,8 @@
     </section>
   </div>
 
-  <script src="./review.js?v=340"></script>
+  <script src="./cloud-config.js?v=410"></script>
+  <script src="./cloud.js?v=410"></script>
+  <script src="./review.js?v=410"></script>
 </body>
 </html>

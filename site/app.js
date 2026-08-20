@@ -2,9 +2,11 @@ const state = {
   data: null,
   query: "",
   selections: {},
-  edition: null,
-  editionManuallySet: false,
+  edition: "",
+  reviewLayout: { domestic: [], foreign: [] },
   selectedNavUid: null,
+  cloudVersion: 0,
+  applyingRemote: false,
 };
 
 const els = {
@@ -23,11 +25,14 @@ const els = {
   morningButton: document.getElementById("morningButton"),
   eveningButton: document.getElementById("eveningButton"),
   clearSelectionButton: document.getElementById("clearSelectionButton"),
+  clearManualButton: document.getElementById("clearManualButton"),
   generateReportButton: document.getElementById("generateReportButton"),
   selectedNavigator: document.getElementById("selectedNavigator"),
   previousSelectedButton: document.getElementById("previousSelectedButton"),
   nextSelectedButton: document.getElementById("nextSelectedButton"),
   selectedNavPosition: document.getElementById("selectedNavPosition"),
+  cloudStatus: document.getElementById("cloudStatus"),
+  cloudReconnectButton: document.getElementById("cloudReconnectButton"),
 };
 
 function escapeHtml(value = "") {
@@ -74,42 +79,146 @@ function getDefaultEdition() {
   return getBeijingHour() >= 14 ? "evening" : "morning";
 }
 
-function storageKey() {
-  return `wscn-report-selections:${state.data?.date || "unknown"}`;
+function workspaceSnapshot() {
+  return {
+    schemaVersion: 1,
+    selections: state.selections,
+    edition: state.edition || getDefaultEdition(),
+    reviewLayout: state.reviewLayout,
+  };
 }
 
-function editionStorageKey() {
-  return `wscn-report-edition:${state.data?.date || "unknown"}`;
+function applyWorkspace(workspace, { renderNow = true } = {}) {
+  const normalized = window.WSCNCloud.normalizeState(workspace);
+
+  state.selections = normalized.selections || {};
+  state.edition =
+    normalized.edition === "morning" || normalized.edition === "evening"
+      ? normalized.edition
+      : getDefaultEdition();
+
+  state.reviewLayout =
+    normalized.reviewLayout &&
+    Array.isArray(normalized.reviewLayout.domestic) &&
+    Array.isArray(normalized.reviewLayout.foreign)
+      ? normalized.reviewLayout
+      : { domestic: [], foreign: [] };
+
+  pruneSelectionsToHistory();
+
+  if (renderNow) render();
 }
 
-function loadSelections() {
-  try {
-    const raw = localStorage.getItem(storageKey());
-    state.selections = raw ? JSON.parse(raw) : {};
+async function persistWorkspace() {
+  if (state.applyingRemote) return;
+  const saved = await window.WSCNCloud.saveWorkspace(workspaceSnapshot());
+  state.cloudVersion = saved.version || state.cloudVersion;
+}
 
-    const savedEdition = localStorage.getItem(editionStorageKey());
-    if (savedEdition === "morning" || savedEdition === "evening") {
-      state.edition = savedEdition;
-      state.editionManuallySet = true;
+function setCloudStatus({ text, kind }) {
+  els.cloudStatus.textContent = text;
+  els.cloudStatus.dataset.kind = kind || "neutral";
+}
+
+function allHistoryItems() {
+  if (!state.data) return [];
+  if (Array.isArray(state.data.history_items) && state.data.history_items.length) {
+    return state.data.history_items;
+  }
+  return state.data.items || [];
+}
+
+function currentBrowseItems() {
+  if (!state.data) return [];
+
+  const map = new Map();
+
+  for (const item of state.data.items || []) {
+    map.set(String(item.id), item);
+  }
+
+  for (const item of allHistoryItems()) {
+    const id = String(item.id);
+    if (state.selections[id] && !map.has(id)) {
+      map.set(id, item);
     }
-  } catch (_) {
-    state.selections = {};
+  }
+
+  return [...map.values()].sort(
+    (a, b) => Number(b.display_time || 0) - Number(a.display_time || 0)
+  );
+}
+
+function pruneSelectionsToHistory() {
+  if (!state.data) return;
+
+  const valid = new Set(allHistoryItems().map((item) => String(item.id)));
+  let changed = false;
+
+  for (const id of Object.keys(state.selections)) {
+    if (!valid.has(String(id))) {
+      delete state.selections[id];
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    window.WSCNCloud.saveLocal(workspaceSnapshot());
   }
 }
 
-function saveSelections() {
-  try {
-    localStorage.setItem(storageKey(), JSON.stringify(state.selections));
-    if (state.edition) localStorage.setItem(editionStorageKey(), state.edition);
-  } catch (_) {}
+function isManualItem(item) {
+  return Boolean(
+    item?.manual || String(item?.uid || "").startsWith("manual-")
+  );
+}
+
+function countManualItems(layout = state.reviewLayout) {
+  if (!layout?.domestic || !layout?.foreign) return 0;
+
+  let count = 0;
+
+  for (const category of ["domestic", "foreign"]) {
+    for (const node of layout[category] || []) {
+      if (node.type === "group") {
+        count += (node.items || []).filter(isManualItem).length;
+      } else if (isManualItem(node)) {
+        count += 1;
+      }
+    }
+  }
+
+  return count;
+}
+
+function clearManualItemsFromLayout() {
+  function keep(item) {
+    return !isManualItem(item);
+  }
+
+  const next = JSON.parse(JSON.stringify(state.reviewLayout));
+
+  for (const category of ["domestic", "foreign"]) {
+    next[category] = (next[category] || [])
+      .map((node) => {
+        if (node.type === "group") {
+          node.items = (node.items || []).filter(keep);
+          return node;
+        }
+        return keep(node) ? node : null;
+      })
+      .filter(Boolean);
+  }
+
+  state.reviewLayout = next;
 }
 
 function getVisibleItems() {
-  if (!state.data?.items) return [];
   const q = state.query.trim().toLowerCase();
 
-  return state.data.items.filter((item) => {
+  return currentBrowseItems().filter((item) => {
     if (!q) return true;
+
     return [item.content, item.title, item.article?.title]
       .filter(Boolean)
       .join(" ")
@@ -130,13 +239,19 @@ function itemHtml(item) {
   if (score >= 3) badge = `<span class="badge important">非常重要</span>`;
   else if (score === 2) badge = `<span class="badge important">重要</span>`;
 
-  const sourceUrl = safeUrl(item.uri || `https://wallstreetcn.com/livenews/${item.id}`);
+  const sourceUrl = safeUrl(
+    item.uri || `https://wallstreetcn.com/livenews/${item.id}`
+  );
+
   const article = item.article?.uri
     ? `<a class="article-link" href="${safeUrl(item.article.uri)}" target="_blank" rel="noreferrer">关联文章：${escapeHtml(item.article.title || "查看")}</a>`
     : "";
 
   return `
-    <article class="news-item score-${Math.min(score, 3)} ${selected ? "is-selected" : ""}" data-news-id="${escapeHtml(String(item.id))}">
+    <article
+      class="news-item score-${Math.min(score, 3)} ${selected ? "is-selected" : ""}"
+      data-news-id="${escapeHtml(String(item.id))}"
+    >
       <time class="news-time">${escapeHtml(item.time || "")}</time>
       <div class="rail"><span class="dot" aria-hidden="true"></span></div>
       <div class="news-card">
@@ -148,8 +263,18 @@ function itemHtml(item) {
             ${article}
           </div>
           <div class="classification" aria-label="加入报告">
-            <button class="classify-btn domestic ${selected === "domestic" ? "selected" : ""}" type="button" data-news-id="${escapeHtml(String(item.id))}" data-category="domestic">国内</button>
-            <button class="classify-btn foreign ${selected === "foreign" ? "selected" : ""}" type="button" data-news-id="${escapeHtml(String(item.id))}" data-category="foreign">国外</button>
+            <button
+              class="classify-btn domestic ${selected === "domestic" ? "selected" : ""}"
+              type="button"
+              data-news-id="${escapeHtml(String(item.id))}"
+              data-category="domestic"
+            >国内</button>
+            <button
+              class="classify-btn foreign ${selected === "foreign" ? "selected" : ""}"
+              type="button"
+              data-news-id="${escapeHtml(String(item.id))}"
+              data-category="foreign"
+            >国外</button>
           </div>
         </div>
       </div>
@@ -158,6 +283,7 @@ function itemHtml(item) {
 
 function selectionCounts() {
   const values = Object.values(state.selections);
+
   return {
     total: values.length,
     domestic: values.filter((x) => x === "domestic").length,
@@ -167,26 +293,37 @@ function selectionCounts() {
 
 function renderEdition() {
   if (!state.edition) state.edition = getDefaultEdition();
+
   els.morningButton.classList.toggle("active", state.edition === "morning");
   els.eveningButton.classList.toggle("active", state.edition === "evening");
 }
 
 function renderSelectionStatus() {
   const counts = selectionCounts();
+  const manualCount = countManualItems();
+
   els.selectedCount.textContent = `已选 ${counts.total} 条`;
-  els.selectedBreakdown.textContent = `国内 ${counts.domestic} · 国外 ${counts.foreign}`;
-  els.drawerSummary.textContent = counts.total
-    ? `已选 ${counts.total} 条 · 国内 ${counts.domestic} / 国外 ${counts.foreign} · 提交`
-    : "已选 0 条 · 提交";
-  els.generateReportButton.disabled = counts.total === 0;
+  els.selectedBreakdown.textContent =
+    `国内 ${counts.domestic} · 国外 ${counts.foreign} · 自选 ${manualCount}`;
+
+  els.drawerSummary.textContent =
+    counts.total || manualCount
+      ? `已选 ${counts.total} 条 · 国内 ${counts.domestic} / 国外 ${counts.foreign} · 自选 ${manualCount} · 提交`
+      : "已选 0 条 · 提交";
+
+  els.generateReportButton.disabled =
+    counts.total === 0 && manualCount === 0;
+
   els.clearSelectionButton.disabled = counts.total === 0;
+  els.clearManualButton.disabled = manualCount === 0;
+
   renderEdition();
 }
 
-
 function selectedItemsInTimelineOrder() {
-  if (!state.data?.items) return [];
-  return state.data.items.filter((item) => Boolean(state.selections[String(item.id)]));
+  return currentBrowseItems().filter((item) =>
+    Boolean(state.selections[String(item.id)])
+  );
 }
 
 function updateSelectedNavigator() {
@@ -201,7 +338,9 @@ function updateSelectedNavigator() {
     return;
   }
 
-  let index = selectedItems.findIndex((item) => String(item.id) === String(state.selectedNavUid));
+  const index = selectedItems.findIndex(
+    (item) => String(item.id) === String(state.selectedNavUid)
+  );
 
   if (index < 0) {
     state.selectedNavUid = null;
@@ -215,26 +354,36 @@ function currentSelectedAnchorIndex(selectedItems, direction) {
   const explicitIndex = selectedItems.findIndex(
     (item) => String(item.id) === String(state.selectedNavUid)
   );
+
   if (explicitIndex >= 0) return explicitIndex;
 
   const viewportAnchor = window.innerHeight * 0.42;
   const candidates = [];
 
   for (let i = 0; i < selectedItems.length; i++) {
-    const el = document.querySelector(`.news-item[data-news-id="${CSS.escape(String(selectedItems[i].id))}"]`);
+    const el = document.querySelector(
+      `.news-item[data-news-id="${CSS.escape(String(selectedItems[i].id))}"]`
+    );
+
     if (!el) continue;
+
     const rect = el.getBoundingClientRect();
     candidates.push({ i, center: rect.top + rect.height / 2 });
   }
 
-  if (!candidates.length) return direction > 0 ? -1 : selectedItems.length;
+  if (!candidates.length) {
+    return direction > 0 ? -1 : selectedItems.length;
+  }
 
   if (direction > 0) {
     const next = candidates.find((x) => x.center > viewportAnchor);
     return next ? next.i - 1 : selectedItems.length - 1;
   }
 
-  const previous = [...candidates].reverse().find((x) => x.center < viewportAnchor);
+  const previous = [...candidates]
+    .reverse()
+    .find((x) => x.center < viewportAnchor);
+
   return previous ? previous.i + 1 : 0;
 }
 
@@ -251,29 +400,37 @@ function navigateSelected(direction) {
   const target = selectedItems[targetIndex];
   state.selectedNavUid = String(target.id);
 
-  const element = document.querySelector(
+  const locateAndScroll = () => {
+    const element = document.querySelector(
+      `.news-item[data-news-id="${CSS.escape(String(target.id))}"]`
+    );
+
+    if (!element) return;
+
+    element.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+
+    element.classList.add("selected-nav-highlight");
+
+    setTimeout(
+      () => element.classList.remove("selected-nav-highlight"),
+      1600
+    );
+  };
+
+  const current = document.querySelector(
     `.news-item[data-news-id="${CSS.escape(String(target.id))}"]`
   );
 
-  if (!element) {
+  if (!current) {
     state.query = "";
     els.searchInput.value = "";
     render();
-
-    requestAnimationFrame(() => {
-      const restored = document.querySelector(
-        `.news-item[data-news-id="${CSS.escape(String(target.id))}"]`
-      );
-      if (restored) {
-        restored.scrollIntoView({ behavior: "smooth", block: "center" });
-        restored.classList.add("selected-nav-highlight");
-        setTimeout(() => restored.classList.remove("selected-nav-highlight"), 1600);
-      }
-    });
+    requestAnimationFrame(locateAndScroll);
   } else {
-    element.scrollIntoView({ behavior: "smooth", block: "center" });
-    element.classList.add("selected-nav-highlight");
-    setTimeout(() => element.classList.remove("selected-nav-highlight"), 1600);
+    locateAndScroll();
   }
 
   updateSelectedNavigator();
@@ -281,53 +438,80 @@ function navigateSelected(direction) {
 
 function render() {
   if (!state.data) return;
+
   const visible = getVisibleItems();
 
   els.updatedText.textContent = formatUpdated(state.data.generated_at);
   els.timeline.innerHTML = visible.map(itemHtml).join("");
   els.emptyState.hidden = visible.length !== 0;
   els.errorState.hidden = true;
-  els.statusText.textContent = state.data.generated_at ? "已同步" : "已读取";
+  els.statusText.textContent =
+    state.data.generated_at ? "已同步" : "已读取";
 
   renderSelectionStatus();
   updateSelectedNavigator();
 }
 
-async function loadData() {
+async function loadNewsData() {
+  const res = await fetch(`./data/latest.json?t=${Date.now()}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const data = await res.json();
+
+  if (data.error) throw new Error(data.error);
+
+  state.data = data;
+}
+
+async function initialLoad() {
   try {
-    const res = await fetch(`./data/latest.json?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    window.WSCNCloud.setStatusListener(setCloudStatus);
 
-    const previousDate = state.data?.date;
-    state.data = data;
+    await loadNewsData();
 
-    if (previousDate !== data.date) {
-      state.edition = getDefaultEdition();
-      state.editionManuallySet = false;
-      loadSelections();
-    }
+    const workspace = await window.WSCNCloud.loadWorkspace({
+      allowPrompt: true,
+    });
 
-    if (!state.edition) state.edition = getDefaultEdition();
-    render();
-  } catch (err) {
-    if (!state.data) {
-      els.timeline.innerHTML = "";
-      els.emptyState.hidden = true;
-      els.errorState.hidden = false;
-      els.errorText.textContent = `读取失败：${err.message}`;
-      els.statusText.textContent = "数据读取失败";
-    }
+    state.cloudVersion = workspace.version || 0;
+    applyWorkspace(workspace.state, { renderNow: true });
+  } catch (error) {
+    console.error(error);
+
+    els.timeline.innerHTML = "";
+    els.emptyState.hidden = true;
+    els.errorState.hidden = false;
+    els.errorText.textContent = `读取失败：${error.message}`;
+    els.statusText.textContent = "数据读取失败";
   }
 }
 
-els.searchInput.addEventListener("input", (e) => {
-  state.query = e.target.value;
+async function pollCloud() {
+  if (document.hidden) return;
+
+  const remote = await window.WSCNCloud.refreshRemoteIfNewer();
+  if (!remote) return;
+
+  const version = Number(remote.version || 0);
+
+  if (version > Number(state.cloudVersion || 0)) {
+    state.applyingRemote = true;
+    state.cloudVersion = version;
+    applyWorkspace(remote.state, { renderNow: true });
+    state.applyingRemote = false;
+    setCloudStatus({ text: "已收到其他设备更新", kind: "success" });
+  }
+}
+
+els.searchInput.addEventListener("input", (event) => {
+  state.query = event.target.value;
   render();
 });
 
-els.timeline.addEventListener("click", (event) => {
+els.timeline.addEventListener("click", async (event) => {
   const button = event.target.closest(".classify-btn");
   if (!button) return;
 
@@ -340,39 +524,70 @@ els.timeline.addEventListener("click", (event) => {
     state.selections[id] = category;
   }
 
-  saveSelections();
   render();
+  await persistWorkspace();
 });
 
 els.selectionDrawerToggle.addEventListener("click", () => {
-  const isCollapsed = els.selectionWorkbench.classList.toggle("collapsed");
-  els.selectionDrawerToggle.setAttribute("aria-expanded", String(!isCollapsed));
+  const isCollapsed =
+    els.selectionWorkbench.classList.toggle("collapsed");
+
+  els.selectionDrawerToggle.setAttribute(
+    "aria-expanded",
+    String(!isCollapsed)
+  );
 });
 
 [els.morningButton, els.eveningButton].forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     state.edition = button.dataset.edition;
-    state.editionManuallySet = true;
-    saveSelections();
     renderEdition();
+    await persistWorkspace();
   });
 });
 
-els.clearSelectionButton.addEventListener("click", () => {
+els.clearSelectionButton.addEventListener("click", async () => {
   state.selections = {};
-  saveSelections();
   render();
+  await persistWorkspace();
 });
 
-els.generateReportButton.addEventListener("click", () => {
-  if (selectionCounts().total === 0) return;
-  saveSelections();
+els.clearManualButton.addEventListener("click", async () => {
+  clearManualItemsFromLayout();
+  renderSelectionStatus();
+  await persistWorkspace();
+});
+
+els.generateReportButton.addEventListener("click", async () => {
+  await persistWorkspace();
   window.location.href = "./review.html";
 });
 
+els.previousSelectedButton.addEventListener(
+  "click",
+  () => navigateSelected(-1)
+);
 
-els.previousSelectedButton.addEventListener("click", () => navigateSelected(-1));
-els.nextSelectedButton.addEventListener("click", () => navigateSelected(1));
+els.nextSelectedButton.addEventListener(
+  "click",
+  () => navigateSelected(1)
+);
 
-loadData();
-setInterval(loadData, 60_000);
+els.cloudReconnectButton.addEventListener("click", async () => {
+  const result = await window.WSCNCloud.reconnect();
+  state.cloudVersion = result.version || 0;
+  applyWorkspace(result.state, { renderNow: true });
+});
+
+initialLoad();
+
+setInterval(() => {
+  loadNewsData()
+    .then(() => render())
+    .catch(() => {});
+}, 60_000);
+
+setInterval(
+  pollCloud,
+  window.WSCNCloud.getPollIntervalMs()
+);
