@@ -99,12 +99,16 @@ function formatTimelineDate(iso) {
   const parts = new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    month: "numeric",
+    day: "numeric",
     weekday: "long",
   }).formatToParts(d);
-  const map = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-  return `${map.year}/${Number(map.month)}/${Number(map.day)} ${map.weekday}`;
+  const map = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return `${map.year}/${map.month}/${map.day} ${map.weekday}`;
 }
 
 function workspaceSnapshot() {
@@ -503,6 +507,11 @@ async function initialLoad() {
 
     await loadNewsData();
 
+    // 先显示新闻和本机已有进度，不等待云端。
+    const localWorkspace = window.WSCNCloud.migrateLegacyLocalIfNeeded();
+    applyWorkspace(localWorkspace, { renderNow: true });
+
+    // 再后台连接云端。连接失败/超时也不会阻塞新闻页面。
     const workspace = await window.WSCNCloud.loadWorkspace({
       allowPrompt: true,
     });

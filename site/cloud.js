@@ -75,22 +75,40 @@
   }
 
   async function rpc(functionName, args) {
-    const response = await fetch(
-      `${normalizeBaseUrl()}/rest/v1/rpc/${functionName}`,
-      {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify(args),
-        cache: "no-store",
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const response = await fetch(
+        `${normalizeBaseUrl()}/rest/v1/rpc/${functionName}`,
+        {
+          method: "POST",
+          headers: {
+            ...headers(),
+            Accept: "application/json",
+          },
+          body: JSON.stringify(args),
+          cache: "no-store",
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Cloud HTTP ${response.status}: ${body.slice(0, 200)}`);
       }
-    );
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Cloud HTTP ${response.status}: ${text.slice(0, 200)}`);
+      return response.json();
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        const timeoutError = new Error("cloud_timeout");
+        timeoutError.code = "cloud_timeout";
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return response.json();
   }
 
   function defaultState() {
@@ -337,9 +355,12 @@
         }
 
         emitStatus("云端密码错误 · 当前使用本机", "error");
+      } else if (error?.code === "cloud_timeout") {
+        console.error(error);
+        emitStatus("云端连接超时 · 当前使用本机", "error");
       } else {
         console.error(error);
-        emitStatus("云端暂不可用 · 已保留本机进度", "error");
+        emitStatus("云端暂不可用 · 当前使用本机", "error");
       }
 
       return {
@@ -410,6 +431,8 @@
 
       if (error?.code === "invalid_password") {
         emitStatus("密码失效 · 已保存本机", "error");
+      } else if (error?.code === "cloud_timeout") {
+        emitStatus("云端保存超时 · 已保存本机", "error");
       } else {
         emitStatus("云端保存失败 · 已保存本机", "error");
       }
