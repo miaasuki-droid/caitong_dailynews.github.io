@@ -489,7 +489,8 @@ function passesUserFilters(item) {
   // “重要 / 非常重要”只受最小字数约束，不受任何屏蔽词或词包影响。
   if (Number(item.score || 1) >= 2) return true;
 
-  const haystack = itemFilterText(item).toLocaleLowerCase("zh-CN");
+  // 屏蔽词只检查快讯正文，不检查隐藏 title 或关联文章标题。
+  const haystack = String(item.content || "").toLocaleLowerCase("zh-CN");
   return !effectiveBlockedTerms().some((term) =>
     haystack.includes(term.toLocaleLowerCase("zh-CN"))
   );
