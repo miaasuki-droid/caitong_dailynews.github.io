@@ -17,9 +17,12 @@ const state = {
   cloudVersion: 0,
   applyingRemote: false,
   workspaceMode: "caitong",
+  historyWindowHours: 12,
+  historyLoadingMore: false,
 };
 
 const EDITION_OVERRIDE_KEY = "wscn-edition-override-v1";
+const HISTORY_WINDOW_STEP_HOURS = 12;
 
 const els = {
   timeline: document.getElementById("timeline"),
@@ -59,6 +62,7 @@ const els = {
   cancelFilterPackEditButton: document.getElementById("cancelFilterPackEditButton"),
   filterPackList: document.getElementById("filterPackList"),
   filterPackStatus: document.getElementById("filterPackStatus"),
+  historyLoadStatus: document.getElementById("historyLoadStatus"),
 };
 
 let filterSaveTimer = null;
@@ -297,27 +301,88 @@ function allHistoryItems() {
   return state.data.items || [];
 }
 
-function currentBrowseItems() {
+function itemTimestampSeconds(item) {
+  const displayTime = Number(item?.display_time || 0);
+  if (displayTime > 0) return displayTime;
+
+  const parsed = Date.parse(item?.datetime || "");
+  return Number.isFinite(parsed) ? parsed / 1000 : 0;
+}
+
+function fullBrowseItems() {
   if (!state.data) return [];
 
   const map = new Map();
-
-  // Main news rail remains the latest 24-hour source list.
+  for (const item of allHistoryItems()) {
+    map.set(String(item.id), item);
+  }
+  // Prefer the freshest payload when the same id also exists in items.
   for (const item of state.data.items || []) {
     map.set(String(item.id), item);
   }
 
-  // Previously selected items remain reachable while they are in the 10-day cache.
-  for (const item of allHistoryItems()) {
-    const id = String(item.id);
-    if (state.selections[id] && !map.has(id)) {
-      map.set(id, item);
-    }
-  }
-
   return [...map.values()].sort(
-    (a, b) => Number(b.display_time || 0) - Number(a.display_time || 0)
+    (a, b) => itemTimestampSeconds(b) - itemTimestampSeconds(a)
   );
+}
+
+function maxHistoryWindowHours() {
+  const retentionDays = Number(state.data?.retention_days || 10);
+  return Math.max(12, Math.min(30, retentionDays || 10) * 24);
+}
+
+function currentBrowseItems() {
+  const nowSeconds = Date.now() / 1000;
+  const cutoff = nowSeconds - state.historyWindowHours * 3600;
+  return fullBrowseItems().filter((item) => itemTimestampSeconds(item) >= cutoff);
+}
+
+function hasMoreHistoryItems() {
+  if (state.historyWindowHours >= maxHistoryWindowHours()) return false;
+  const nowSeconds = Date.now() / 1000;
+  const cutoff = nowSeconds - state.historyWindowHours * 3600;
+  return fullBrowseItems().some((item) => itemTimestampSeconds(item) < cutoff);
+}
+
+function historyWindowLabel() {
+  if (state.historyWindowHours < 24) return `近 ${state.historyWindowHours} 小时`;
+  const days = state.historyWindowHours / 24;
+  return Number.isInteger(days) ? `近 ${days} 天` : `近 ${state.historyWindowHours} 小时`;
+}
+
+function renderHistoryLoadStatus() {
+  if (!els.historyLoadStatus) return;
+  const count = currentBrowseItems().length;
+  if (hasMoreHistoryItems()) {
+    els.historyLoadStatus.textContent = `已显示${historyWindowLabel()} · ${count} 条 · 继续向下滚动加载更早新闻`;
+    els.historyLoadStatus.dataset.complete = "false";
+  } else {
+    els.historyLoadStatus.textContent = `已显示缓存内全部新闻 · ${count} 条`;
+    els.historyLoadStatus.dataset.complete = "true";
+  }
+}
+
+function loadMoreHistoryItems() {
+  if (state.historyLoadingMore || !hasMoreHistoryItems()) return;
+  state.historyLoadingMore = true;
+  state.historyWindowHours = Math.min(
+    maxHistoryWindowHours(),
+    state.historyWindowHours + HISTORY_WINDOW_STEP_HOURS
+  );
+  render();
+  window.setTimeout(() => {
+    state.historyLoadingMore = false;
+  }, 120);
+}
+
+function ensureHistoryWindowContains(item) {
+  const timestamp = itemTimestampSeconds(item);
+  if (!timestamp) return;
+  const ageHours = Math.max(0, (Date.now() / 1000 - timestamp) / 3600);
+  if (ageHours <= state.historyWindowHours) return;
+
+  const needed = Math.ceil((ageHours + 1) / HISTORY_WINDOW_STEP_HOURS) * HISTORY_WINDOW_STEP_HOURS;
+  state.historyWindowHours = Math.min(maxHistoryWindowHours(), Math.max(12, needed));
 }
 
 function pruneSelectionsToHistory() {
@@ -420,6 +485,9 @@ function effectiveBlockedTerms() {
 
 function passesUserFilters(item) {
   if (itemCharacterCount(item) < state.filters.minLength) return false;
+
+  // “重要 / 非常重要”只受最小字数约束，不受任何屏蔽词或词包影响。
+  if (Number(item.score || 1) >= 2) return true;
 
   const haystack = itemFilterText(item).toLocaleLowerCase("zh-CN");
   return !effectiveBlockedTerms().some((term) =>
@@ -626,7 +694,7 @@ function renderSelectionStatus() {
 }
 
 function selectedItemsInTimelineOrder() {
-  return currentBrowseItems().filter((item) =>
+  return fullBrowseItems().filter((item) =>
     Boolean(state.selections[String(item.id)])
   );
 }
@@ -704,6 +772,7 @@ function navigateSelected(direction) {
 
   const target = selectedItems[targetIndex];
   state.selectedNavUid = String(target.id);
+  ensureHistoryWindowContains(target);
 
   const locateAndScroll = () => {
     const element = document.querySelector(
@@ -755,6 +824,7 @@ function render() {
   renderFilterPacks();
   renderNewsTabs();
   renderSelectionStatus();
+  renderHistoryLoadStatus();
   updateSelectedNavigator();
   updateWorkspaceModeUI();
 }
@@ -1025,6 +1095,22 @@ els.cloudLogoutButton.addEventListener("click", () => {
   window.WSCNCloud.logout();
   window.location.reload();
 });
+
+let historyScrollTicking = false;
+window.addEventListener(
+  "scroll",
+  () => {
+    if (historyScrollTicking) return;
+    historyScrollTicking = true;
+    window.requestAnimationFrame(() => {
+      historyScrollTicking = false;
+      const root = document.documentElement;
+      const remaining = root.scrollHeight - (window.scrollY + window.innerHeight);
+      if (remaining <= 420) loadMoreHistoryItems();
+    });
+  },
+  { passive: true }
+);
 
 initialLoad();
 

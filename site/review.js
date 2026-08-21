@@ -134,6 +134,7 @@ function makeItem(raw) {
     newsId: String(raw.id),
     content: raw.content || raw.title || "",
     title: raw.title || "",
+    articleTitle: raw.article?.title || "",
     time: raw.time || "",
     display_time: raw.display_time || 0,
   };
@@ -854,22 +855,28 @@ function buildCaitongReport() {
 
 function zhoubaoTitleAndBody(item) {
   const raw = normalizeNewsText(item.content || "");
-  let title = normalizeNewsText(item.title || "");
-  let body = raw;
-
+  const sourceTitle = normalizeNewsText(item.title || "");
+  const articleTitle = normalizeNewsText(item.articleTitle || "");
   const bracket = raw.match(/^【([^】]+)】\s*(.*)$/);
-  if (!title && bracket) {
-    title = bracket[1].trim();
-    body = bracket[2].trim();
-  } else if (title && bracket && bracket[1].trim() === title) {
-    body = bracket[2].trim();
-  }
+  const bracketTitle = bracket ? normalizeNewsText(bracket[1]) : "";
+
+  // 标题优先级：快讯自身标题 → 正文开头【标题】 → 关联文章标题 → 正文首句兜底。
+  let title = sourceTitle || bracketTitle || articleTitle;
+  let body = bracket ? normalizeNewsText(bracket[2]) : raw;
 
   if (!title) {
     const sentence = raw.split(/[。！？!?；;]/)[0].trim();
     title = sentence.slice(0, 36) || "新闻";
-    if (body === raw && raw.startsWith(sentence) && raw.length > sentence.length) {
-      body = raw.slice(sentence.length).replace(/^[。！？!?；;，,\s]+/, "").trim();
+
+    // 如果正文还有后续内容，首句已作为标题后从正文中移除；
+    // 若整条快讯只有一句，则保留原文作为正文，避免第二行为空。
+    if (raw.startsWith(sentence) && raw.length > sentence.length) {
+      body = raw
+        .slice(sentence.length)
+        .replace(/^[。！？!?；;，,\s]+/, "")
+        .trim();
+    } else {
+      body = raw;
     }
   }
 
