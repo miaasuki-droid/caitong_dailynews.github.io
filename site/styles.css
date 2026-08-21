@@ -4106,15 +4106,19 @@ body[data-workspace-mode="zhoubao"] #resetGroupsButton {
   display: none !important;
 }
 
-/* 财通移动端：让“+国内组 / +国外组”下方与顶部“退出”上方留白更对称。 */
+/* 财通：让“+国内组 / +国外组”下方与顶部“退出”上方留白更对称。PC 和移动端都生效。 */
+body[data-workspace-mode="caitong"] .review-header-actions {
+  padding-bottom: 12px !important;
+}
+
 @media (max-width: 780px) {
   body[data-workspace-mode="caitong"] .review-header-actions {
-    padding-bottom: 10px !important;
+    padding-bottom: 12px !important;
   }
 }
 
 @media (max-width: 480px) {
   body[data-workspace-mode="caitong"] .review-header-actions {
-    padding-bottom: 10px !important;
+    padding-bottom: 12px !important;
   }
 }
