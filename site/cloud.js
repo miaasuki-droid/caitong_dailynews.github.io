@@ -5,9 +5,12 @@
   const MODE_KEY = "wscn-cloud-workspace-mode-v2";
   const LEGACY_LOCAL_STATE_KEY = "wscn-shared-workspace-v1";
   const LOCAL_STATE_PREFIX = "wscn-shared-workspace-v2:";
+  const SHARED_FILTER_LIBRARY_KEY = "wscn-shared-filter-library-v1";
 
   let remoteVersion = 0;
   let lastRemoteUpdatedAt = "";
+  let sharedFilterVersion = 0;
+  let sharedFilterUpdatedAt = "";
   // Password and mode are pinned in memory for the lifetime of this page.
   // This prevents another browser tab from silently switching this tab from
   // Caitong to Zhoubao (or the reverse) by changing shared localStorage.
@@ -271,6 +274,93 @@
     }
 
     return base;
+  }
+
+  function defaultSharedFilterLibrary() {
+    return {
+      schemaVersion: 1,
+      filterPacks: [],
+    };
+  }
+
+  function normalizeSharedFilterLibrary(value) {
+    const base = defaultSharedFilterLibrary();
+    const input = value && typeof value === "object" ? value : {};
+    const seen = new Set();
+
+    base.filterPacks = Array.isArray(input.filterPacks)
+      ? input.filterPacks
+          .map((pack, index) => {
+            if (!pack || typeof pack !== "object") return null;
+            const id = String(pack.id || `pack-${index + 1}`).trim();
+            const name = String(pack.name || "").trim();
+            const terms = String(pack.terms || "");
+            if (!id || !name || seen.has(id)) return null;
+            seen.add(id);
+            return { id, name: name.slice(0, 40), terms };
+          })
+          .filter(Boolean)
+      : [];
+
+    return base;
+  }
+
+  function loadLocalSharedFilterLibrary() {
+    try {
+      const parsed = JSON.parse(
+        localStorage.getItem(SHARED_FILTER_LIBRARY_KEY) || "null"
+      );
+      return normalizeSharedFilterLibrary(parsed);
+    } catch (_) {
+      return defaultSharedFilterLibrary();
+    }
+  }
+
+  function saveLocalSharedFilterLibrary(value) {
+    const normalized = normalizeSharedFilterLibrary(value);
+    localStorage.setItem(
+      SHARED_FILTER_LIBRARY_KEY,
+      JSON.stringify(normalized)
+    );
+    return normalized;
+  }
+
+  function migrateLocalSharedFilterLibraryIfNeeded() {
+    if (localStorage.getItem(SHARED_FILTER_LIBRARY_KEY)) {
+      return loadLocalSharedFilterLibrary();
+    }
+
+    // Merge any packs that already existed separately in Caitong / Zhoubao.
+    // Duplicate ids are kept once, preferring Caitong's copy.
+    const merged = [];
+    const seen = new Set();
+
+    for (const mode of ["caitong", "zhoubao"]) {
+      let source = null;
+      try {
+        source = JSON.parse(
+          localStorage.getItem(localStateKey(mode)) || "null"
+        );
+      } catch (_) {}
+
+      const packs = Array.isArray(source?.filters?.filterPacks)
+        ? source.filters.filterPacks
+        : [];
+
+      for (const pack of packs) {
+        const normalized = normalizeSharedFilterLibrary({
+          filterPacks: [pack],
+        }).filterPacks[0];
+        if (!normalized || seen.has(normalized.id)) continue;
+        seen.add(normalized.id);
+        merged.push(normalized);
+      }
+    }
+
+    return saveLocalSharedFilterLibrary({
+      schemaVersion: 1,
+      filterPacks: merged,
+    });
   }
 
   function loadLocal(mode = getMode()) {
@@ -651,6 +741,157 @@
     }
   }
 
+  async function loadSharedFilterLibrary() {
+    const local = migrateLocalSharedFilterLibraryIfNeeded();
+
+    if (!configured()) {
+      return {
+        cloud: false,
+        state: local,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    }
+
+    const password = getPassword();
+    if (!password) {
+      return {
+        cloud: false,
+        state: local,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    }
+
+    try {
+      const payload = await rpc("load_shared_filter_library", {
+        p_password: password,
+      });
+
+      if (!payload?.ok) {
+        if (payload?.error === "invalid_password") {
+          const error = new Error("invalid_password");
+          error.code = "invalid_password";
+          throw error;
+        }
+        throw new Error(payload?.error || "shared_filter_load_failed");
+      }
+
+      sharedFilterVersion = Number(payload.version || 0);
+      sharedFilterUpdatedAt = payload.updated_at || "";
+      const normalized = saveLocalSharedFilterLibrary(payload.state);
+
+      return {
+        cloud: true,
+        state: normalized,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    } catch (error) {
+      console.error("Shared filter library load failed:", error);
+      return {
+        cloud: false,
+        state: local,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    }
+  }
+
+  async function saveSharedFilterLibrary(value) {
+    const normalized = saveLocalSharedFilterLibrary(value);
+
+    if (!configured()) {
+      return {
+        cloud: false,
+        state: normalized,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    }
+
+    const password = getPassword();
+    if (!password) {
+      return {
+        cloud: false,
+        state: normalized,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    }
+
+    try {
+      const payload = await rpc("save_shared_filter_library", {
+        p_password: password,
+        p_state: normalized,
+      });
+
+      if (!payload?.ok) {
+        if (payload?.error === "invalid_password") {
+          const error = new Error("invalid_password");
+          error.code = "invalid_password";
+          throw error;
+        }
+        throw new Error(payload?.error || "shared_filter_save_failed");
+      }
+
+      sharedFilterVersion = Number(
+        payload.version || sharedFilterVersion + 1
+      );
+      sharedFilterUpdatedAt = payload.updated_at || "";
+      const returned = saveLocalSharedFilterLibrary(
+        payload.state || normalized
+      );
+
+      return {
+        cloud: true,
+        state: returned,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    } catch (error) {
+      console.error("Shared filter library save failed:", error);
+      return {
+        cloud: false,
+        state: normalized,
+        version: sharedFilterVersion,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    }
+  }
+
+  async function refreshSharedFilterLibraryIfNewer() {
+    if (!configured()) return null;
+
+    const password = getPassword();
+    if (!password) return null;
+
+    try {
+      const payload = await rpc("load_shared_filter_library", {
+        p_password: password,
+      });
+
+      if (!payload?.ok) return null;
+
+      const version = Number(payload.version || 0);
+      if (version <= sharedFilterVersion) return null;
+
+      sharedFilterVersion = version;
+      sharedFilterUpdatedAt = payload.updated_at || "";
+      const normalized = saveLocalSharedFilterLibrary(payload.state);
+
+      return {
+        cloud: true,
+        state: normalized,
+        version,
+        updatedAt: sharedFilterUpdatedAt,
+      };
+    } catch (error) {
+      console.error("Shared filter library refresh failed:", error);
+      return null;
+    }
+  }
+
   async function refreshRemoteIfNewer() {
     if (!configured()) return null;
 
@@ -681,6 +922,8 @@
     currentMode = "caitong";
     remoteVersion = 0;
     lastRemoteUpdatedAt = "";
+    sharedFilterVersion = 0;
+    sharedFilterUpdatedAt = "";
     loginPromise = null;
     emitStatus("已退出", "neutral");
   }
@@ -702,6 +945,14 @@
     loadWorkspace,
     saveWorkspace,
     refreshRemoteIfNewer,
+    defaultSharedFilterLibrary,
+    normalizeSharedFilterLibrary,
+    loadLocalSharedFilterLibrary,
+    saveLocalSharedFilterLibrary,
+    migrateLocalSharedFilterLibraryIfNeeded,
+    loadSharedFilterLibrary,
+    saveSharedFilterLibrary,
+    refreshSharedFilterLibraryIfNewer,
     logout,
     getPassword,
     setPassword,
@@ -711,5 +962,6 @@
     setStatusListener,
     getPollIntervalMs,
     getVersion: () => remoteVersion,
+    getSharedFilterVersion: () => sharedFilterVersion,
   };
 })();

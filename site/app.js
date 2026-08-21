@@ -15,6 +15,7 @@ const state = {
   reviewLayout: { domestic: [], foreign: [] },
   selectedNavUid: null,
   cloudVersion: 0,
+  sharedFilterVersion: 0,
   applyingRemote: false,
   workspaceMode: "caitong",
   historyWindowHours: 12,
@@ -214,8 +215,6 @@ function normalizeFilters(filters) {
         })
         .filter(Boolean)
     : [];
-  const validIds = new Set(filterPacks.map((pack) => pack.id));
-
   return {
     minLength:
       Number.isFinite(minLength) && minLength >= 0
@@ -223,8 +222,10 @@ function normalizeFilters(filters) {
         : 10,
     blockedTerms: String(filters?.blockedTerms || ""),
     filterPacks,
+    // Pack definitions are shared globally, but enabled/disabled state remains
+    // specific to the current workspace.
     activeFilterPackIds: Array.isArray(filters?.activeFilterPackIds)
-      ? [...new Set(filters.activeFilterPackIds.map(String))].filter((id) => validIds.has(id))
+      ? [...new Set(filters.activeFilterPackIds.map(String))]
       : [],
   };
 }
@@ -234,7 +235,12 @@ function workspaceSnapshot() {
     schemaVersion: 3,
     selections: state.selections,
     edition: state.workspaceMode === "zhoubao" ? "" : (state.edition || getPreferredEdition()),
-    filters: state.filters,
+    filters: {
+      minLength: state.filters.minLength,
+      blockedTerms: state.filters.blockedTerms,
+      filterPacks: [],
+      activeFilterPackIds: state.filters.activeFilterPackIds,
+    },
     reviewLayout: state.reviewLayout,
   };
 }
@@ -266,7 +272,9 @@ function applyWorkspace(workspace, { renderNow = true } = {}) {
     state.workspaceMode === "zhoubao"
       ? ""
       : getPreferredEdition();
+  const sharedPacks = state.filters.filterPacks || [];
   state.filters = normalizeFilters(normalized.filters);
+  state.filters.filterPacks = sharedPacks;
   state.reviewLayout =
     normalized.reviewLayout &&
     Array.isArray(normalized.reviewLayout.domestic) &&
@@ -285,6 +293,43 @@ async function persistWorkspace() {
   const saved = await window.WSCNCloud.saveWorkspace(workspaceSnapshot());
   state.cloudVersion = saved.version || state.cloudVersion;
   updateWorkspaceModeUI(saved.mode || window.WSCNCloud.getMode());
+}
+
+function applySharedFilterLibrary(library, { renderNow = true } = {}) {
+  const normalized = window.WSCNCloud.normalizeSharedFilterLibrary(library);
+  state.filters.filterPacks = normalized.filterPacks;
+
+  const validIds = new Set(state.filters.filterPacks.map((pack) => pack.id));
+  state.filters.activeFilterPackIds = (
+    state.filters.activeFilterPackIds || []
+  ).filter((id) => validIds.has(id));
+
+  if (
+    state.editingFilterPackId &&
+    !validIds.has(state.editingFilterPackId)
+  ) {
+    state.editingFilterPackId = "";
+    els.filterPackNameInput.value = "";
+  }
+
+  if (renderNow) render();
+}
+
+function sharedFilterLibrarySnapshot() {
+  return {
+    schemaVersion: 1,
+    filterPacks: state.filters.filterPacks,
+  };
+}
+
+async function persistSharedFilterLibrary() {
+  const saved = await window.WSCNCloud.saveSharedFilterLibrary(
+    sharedFilterLibrarySnapshot()
+  );
+  state.sharedFilterVersion =
+    saved.version || state.sharedFilterVersion;
+  applySharedFilterLibrary(saved.state, { renderNow: false });
+  return saved;
 }
 
 function setCloudStatus({ text, kind, mode }) {
@@ -849,6 +894,11 @@ async function initialLoad() {
     await loadNewsData();
 
     // Render immediately from local state. Cloud never blocks the news list.
+    // Existing Caitong/Zhoubao pack definitions are merged into one local library.
+    const localSharedLibrary =
+      window.WSCNCloud.migrateLocalSharedFilterLibraryIfNeeded();
+    applySharedFilterLibrary(localSharedLibrary, { renderNow: false });
+
     const localWorkspace = window.WSCNCloud.migrateLegacyLocalIfNeeded();
     applyWorkspace(localWorkspace, { renderNow: true });
 
@@ -859,6 +909,10 @@ async function initialLoad() {
     state.cloudVersion = workspace.version || 0;
     updateWorkspaceModeUI(workspace.mode || window.WSCNCloud.getMode());
     applyWorkspace(workspace.state, { renderNow: true });
+
+    const sharedLibrary = await window.WSCNCloud.loadSharedFilterLibrary();
+    state.sharedFilterVersion = sharedLibrary.version || 0;
+    applySharedFilterLibrary(sharedLibrary.state, { renderNow: true });
   } catch (error) {
     console.error(error);
 
@@ -873,32 +927,41 @@ async function initialLoad() {
 async function pollCloud() {
   if (document.hidden) return;
 
-  const remote = await window.WSCNCloud.refreshRemoteIfNewer();
-  if (!remote) return;
+  const [remote, sharedLibrary] = await Promise.all([
+    window.WSCNCloud.refreshRemoteIfNewer(),
+    window.WSCNCloud.refreshSharedFilterLibraryIfNewer(),
+  ]);
 
-  const version = Number(remote.version || 0);
+  if (remote) {
+    const version = Number(remote.version || 0);
 
-  // The current session is locked to the workspace selected at login.
-  // Never jump from Caitong to Zhoubao (or the reverse) during background polling.
-  if (remote.mode && remote.mode !== state.workspaceMode) {
-    setCloudStatus({
-      text: "工作区状态异常，请退出后重新进入",
-      kind: "error",
-      mode: state.workspaceMode,
-    });
-    return;
+    // The current session is locked to the workspace selected at login.
+    // Never jump from Caitong to Zhoubao (or the reverse) during background polling.
+    if (remote.mode && remote.mode !== state.workspaceMode) {
+      setCloudStatus({
+        text: "工作区状态异常，请退出后重新进入",
+        kind: "error",
+        mode: state.workspaceMode,
+      });
+    } else if (version > Number(state.cloudVersion || 0)) {
+      state.applyingRemote = true;
+      state.cloudVersion = version;
+      applyWorkspace(remote.state, { renderNow: true });
+      state.applyingRemote = false;
+      setCloudStatus({
+        text: `${window.WSCNCloud.modeLabel()}工作区已同步`,
+        kind: "success",
+        mode: state.workspaceMode,
+      });
+    }
   }
 
-  if (version > Number(state.cloudVersion || 0)) {
-    state.applyingRemote = true;
-    state.cloudVersion = version;
-    applyWorkspace(remote.state, { renderNow: true });
-    state.applyingRemote = false;
-    setCloudStatus({
-      text: `${window.WSCNCloud.modeLabel()}工作区已同步`,
-      kind: "success",
-      mode: state.workspaceMode,
-    });
+  if (sharedLibrary) {
+    const version = Number(sharedLibrary.version || 0);
+    if (version > Number(state.sharedFilterVersion || 0)) {
+      state.sharedFilterVersion = version;
+      applySharedFilterLibrary(sharedLibrary.state, { renderNow: true });
+    }
   }
 }
 
@@ -968,7 +1031,10 @@ els.saveFilterPackButton.addEventListener("click", async () => {
   els.blockedTermsInput.value = "";
 
   render();
-  await persistWorkspace();
+  await Promise.all([
+    persistWorkspace(),
+    persistSharedFilterLibrary(),
+  ]);
 });
 
 els.cancelFilterPackEditButton.addEventListener("click", () => {
@@ -1017,7 +1083,10 @@ els.filterPackList.addEventListener("click", async (event) => {
       }
       setFilterPackStatus(`已删除词包「${pack.name}」`, "success");
       render();
-      await persistWorkspace();
+      await Promise.all([
+        persistWorkspace(),
+        persistSharedFilterLibrary(),
+      ]);
       return;
     }
   }
