@@ -3568,3 +3568,434 @@ body {
 .cloud-login-submit:hover {
   background: #003f86 !important;
 }
+
+/* ===== v5.2：固定工作区 + 多词包筛选 + 淡蓝新闻 ===== */
+
+/* 新闻卡片使用清爽淡蓝；整体仍保持初版深蓝/灰白结构。 */
+.news-card,
+.news-card:hover,
+.news-item.score-3 .news-card {
+  background: #eaf6ff !important;
+  border-color: #cfe7f8 !important;
+}
+
+.news-card:hover {
+  background: #e4f3ff !important;
+  border-color: #b8d9ef !important;
+}
+
+.news-item.score-2 .news-card,
+.news-item.score-3 .news-card {
+  border-left-color: #004ca0 !important;
+}
+
+.news-item.score-3 .news-card {
+  background: #e4f3ff !important;
+}
+
+/* 筛选词区 */
+.blocked-terms-head {
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.blocked-terms-head .filter-label {
+  margin-bottom: 0;
+}
+
+.effective-filter-count {
+  color: #737983;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.filter-pack-editor {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(120px, 210px) auto auto;
+  gap: 7px;
+  align-items: center;
+}
+
+.filter-pack-name-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d7dade;
+  border-radius: 8px;
+  outline: none;
+  background: #fff;
+  color: #17191d;
+  font: inherit;
+  font-size: 12px;
+}
+
+.filter-pack-name-input:focus {
+  border-color: #004ca0;
+  box-shadow: 0 0 0 3px rgba(0, 76, 160, 0.08);
+}
+
+.filter-pack-save-button,
+.filter-pack-cancel-button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #d7dade;
+  border-radius: 8px;
+  background: #fff;
+  color: #4e555e;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-pack-save-button {
+  border-color: #004ca0;
+  background: #004ca0;
+  color: #fff;
+}
+
+.filter-pack-save-button:hover {
+  background: #003f86;
+}
+
+.filter-pack-cancel-button:hover {
+  border-color: #aeb4bd;
+  color: #004ca0;
+}
+
+.filter-pack-heading {
+  margin-top: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: #555c65;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.filter-pack-heading small {
+  color: #8a9099;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.filter-pack-list {
+  margin-top: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 30px;
+}
+
+.filter-pack-empty {
+  align-self: center;
+  color: #9a9fa7;
+  font-size: 10px;
+}
+
+.filter-pack-card {
+  position: relative;
+  min-width: 138px;
+  max-width: 220px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  border: 1px solid #dfe2e6;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.filter-pack-card.active {
+  border-color: #62c0fe;
+  background: #edf8ff;
+  box-shadow: 0 0 0 1px rgba(0, 76, 160, 0.05);
+}
+
+.filter-pack-toggle,
+.filter-pack-more,
+.filter-pack-menu button {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.filter-pack-toggle {
+  min-width: 0;
+  min-height: 42px;
+  padding: 6px 5px 6px 8px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  text-align: left;
+  border-radius: 8px 0 0 8px;
+  background: transparent;
+  color: #282c31;
+}
+
+.filter-pack-toggle:hover {
+  background: rgba(0, 76, 160, 0.035);
+}
+
+.filter-pack-check {
+  width: 17px;
+  height: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cdd2d8;
+  border-radius: 5px;
+  color: #fff;
+  background: #fff;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.filter-pack-card.active .filter-pack-check {
+  border-color: #004ca0;
+  background: #004ca0;
+}
+
+.filter-pack-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-pack-copy strong {
+  overflow: hidden;
+  color: #24272c;
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-pack-copy small {
+  margin-top: 1px;
+  color: #8a9099;
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.filter-pack-card.active .filter-pack-copy strong,
+.filter-pack-card.active .filter-pack-copy small {
+  color: #004ca0;
+}
+
+.filter-pack-more {
+  width: 30px;
+  min-height: 42px;
+  padding: 0 0 8px;
+  border-radius: 0 8px 8px 0;
+  background: transparent;
+  color: #757b84;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.filter-pack-more:hover {
+  color: #004ca0;
+  background: #f2f4f7;
+}
+
+.filter-pack-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 1200;
+  width: 116px;
+  padding: 5px;
+  border: 1px solid #d8dbe0;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(20, 24, 31, 0.16);
+}
+
+.filter-pack-menu[hidden] {
+  display: none;
+}
+
+.filter-pack-menu button {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fff;
+  color: #33383f;
+  text-align: left;
+  font-size: 11px;
+}
+
+.filter-pack-menu button:hover {
+  background: #f3f5f7;
+}
+
+.filter-pack-menu button[data-pack-action="delete"]:hover {
+  color: #9d2a23;
+  background: #fff4f2;
+}
+
+.filter-pack-status {
+  min-height: 14px;
+  margin: 5px 0 0;
+  color: #848a93;
+  font-size: 10px;
+}
+
+.filter-pack-status[data-kind="success"] {
+  color: #004ca0;
+}
+
+.filter-pack-status[data-kind="error"] {
+  color: #9d2a23;
+}
+
+/* 工作区只能通过退出后重新输入口令进入另一模式。 */
+.cloud-reconnect-button,
+.review-logout-button {
+  color: #5d626b !important;
+  background: #fff !important;
+  border-color: #dfe2e6 !important;
+}
+
+.cloud-reconnect-button:hover,
+.review-logout-button:hover {
+  color: #004ca0 !important;
+  border-color: #aeb4bd !important;
+}
+
+.review-logout-button {
+  min-height: 36px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+
+/* 登录框现在是明确的入口门槛，不再提供右上角直接关闭。 */
+.cloud-login-head {
+  padding-right: 0;
+}
+
+@media (max-width: 780px) {
+  .filter-pack-editor {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filter-pack-name-input {
+    grid-column: 1 / -1;
+  }
+
+  .filter-pack-save-button,
+  .filter-pack-cancel-button {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .filter-pack-card {
+    flex: 1 1 145px;
+    max-width: none;
+  }
+
+  .filter-pack-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .review-header-actions {
+    grid-template-columns: auto auto 1fr 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-pack-card {
+    min-width: 0;
+    flex-basis: calc(50% - 4px);
+  }
+
+  .filter-pack-copy strong {
+    font-size: 10.5px;
+  }
+
+  .review-header-actions {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .review-account-badge {
+    grid-column: 1 / -1;
+  }
+}
+
+
+/* ===== v5.2.1：新闻白底 + 时间戳淡蓝 ===== */
+
+/* 首页新闻卡恢复白色。 */
+.news-card,
+.news-card:hover,
+.news-item.score-3 .news-card {
+  background: #ffffff !important;
+  border-color: #e1e4e8 !important;
+}
+
+.news-card:hover {
+  background: #ffffff !important;
+  border-color: #cdd1d7 !important;
+}
+
+.news-item.score-2 .news-card,
+.news-item.score-3 .news-card {
+  border-left-color: #004ca0 !important;
+}
+
+/* 整理页新闻也保持白底，避免与首页视觉不一致。 */
+.review-item,
+.review-item.in-group {
+  background: #ffffff !important;
+  border-color: #e0e2e6 !important;
+}
+
+/* 左侧时间戳改为淡蓝色信息块。 */
+.news-time {
+  align-self: start;
+  margin: 8px 5px 8px 0;
+  padding: 8px 7px !important;
+  border: 1px solid #cfe7f8;
+  border-radius: 9px;
+  background: #eaf6ff;
+  text-align: right;
+}
+
+.news-time-main {
+  color: #004ca0 !important;
+  font-weight: 650;
+}
+
+.news-time-date {
+  color: #496b89 !important;
+}
+
+.news-time-weekday {
+  color: #6d8294 !important;
+}
+
+@media (max-width: 780px) {
+  .news-time {
+    margin: 6px 3px 6px 0;
+    padding: 7px 5px !important;
+    border-radius: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .news-time {
+    margin-right: 2px;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+}

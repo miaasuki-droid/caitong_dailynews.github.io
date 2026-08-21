@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light" />
   <title>今日全球快讯</title>
   <meta name="description" content="财通固收早晚报快讯筛选工具" />
-  <link rel="stylesheet" href="./styles.css?v=512" />
+  <link rel="stylesheet" href="./styles.css?v=521" />
 </head>
 <body>
   <header class="topbar">
@@ -44,7 +44,7 @@
             <strong id="workspaceModeLabel" class="workspace-mode-label">财通模式</strong>
             <span id="cloudStatus" class="cloud-status">正在连接…</span>
           </div>
-          <button id="cloudReconnectButton" class="cloud-reconnect-button" type="button">切换入口</button>
+          <button id="cloudLogoutButton" class="cloud-reconnect-button" type="button">退出</button>
         </div>
       </div>
     </section>
@@ -69,10 +69,24 @@
           <small>少于该字数的新闻不显示</small>
         </label>
 
-        <label class="blocked-terms-control" for="blockedTermsInput">
-          <span class="filter-label">筛选词</span>
-          <textarea id="blockedTermsInput" rows="3" placeholder="一个词一行；包含任一词的新闻不进入“筛选后新闻”"></textarea>
-        </label>
+        <div class="blocked-terms-control">
+          <div class="blocked-terms-head">
+            <label class="filter-label" for="blockedTermsInput">筛选词</label>
+            <span id="effectiveFilterTermCount" class="effective-filter-count">当前生效 0 个词</span>
+          </div>
+          <textarea id="blockedTermsInput" rows="4" placeholder="一个词一行；这里的筛选词会与已启用词包取并集"></textarea>
+          <div class="filter-pack-editor">
+            <input id="filterPackNameInput" class="filter-pack-name-input" type="text" maxlength="40" placeholder="词包名称" />
+            <button id="saveFilterPackButton" class="filter-pack-save-button" type="button">保存为词包</button>
+            <button id="cancelFilterPackEditButton" class="filter-pack-cancel-button" type="button" hidden>取消编辑</button>
+          </div>
+          <div class="filter-pack-heading">
+            <span>词包</span>
+            <small>可同时启用多个，屏蔽词取并集</small>
+          </div>
+          <div id="filterPackList" class="filter-pack-list" aria-live="polite"></div>
+          <p id="filterPackStatus" class="filter-pack-status" aria-live="polite"></p>
+        </div>
       </div>
     </section>
 
@@ -130,8 +144,8 @@
     </button>
   </div>
 
-  <script src="./cloud-config.js?v=510"></script>
-  <script src="./cloud.js?v=510"></script>
-  <script src="./app.js?v=510"></script>
+  <script src="./cloud-config.js?v=520"></script>
+  <script src="./cloud.js?v=520"></script>
+  <script src="./app.js?v=520"></script>
 </body>
 </html>

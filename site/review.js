@@ -3,7 +3,7 @@ const state = {
   date: "",
   edition: "morning",
   selections: {},
-  filters: { minLength: 10, blockedTerms: "" },
+  filters: { minLength: 10, blockedTerms: "", filterPacks: [], activeFilterPackIds: [] },
   workspaceMode: "caitong",
   boards: { domestic: [], foreign: [] },
   groupResetBaseline: null,
@@ -40,6 +40,7 @@ const els = {
   globalNodeMenu: document.getElementById("globalNodeMenu"),
   globalNodeMenuExtra: document.getElementById("globalNodeMenuExtra"),
   reviewCloudStatus: document.getElementById("reviewCloudStatus"),
+  reviewLogoutButton: document.getElementById("reviewLogoutButton"),
   reportHint: document.getElementById("reportHint"),
   reviewTitle: document.getElementById("reviewTitle"),
 };
@@ -89,7 +90,7 @@ function sourceItems() {
 
 function workspaceSnapshot() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     selections: state.selections,
     edition: state.workspaceMode === "zhoubao" ? "" : state.edition,
     filters: state.filters,
@@ -1065,7 +1066,7 @@ async function initialLoad() {
     state.selections =
       normalized.selections || {};
 
-    state.filters = normalized.filters || { minLength: 10, blockedTerms: "" };
+    state.filters = normalized.filters || { minLength: 10, blockedTerms: "", filterPacks: [], activeFilterPackIds: [] };
     state.workspaceMode =
       window.WSCNCloud.getMode() === "zhoubao"
         ? "zhoubao"
@@ -1167,6 +1168,15 @@ async function pollCloud() {
     return;
   }
 
+  if (remote.mode && remote.mode !== state.workspaceMode) {
+    setCloudStatus({
+      text: "工作区状态异常，请退出后重新进入",
+      kind: "error",
+      mode: state.workspaceMode,
+    });
+    return;
+  }
+
   state.applyingRemote = true;
   state.cloudVersion = version;
 
@@ -1178,10 +1188,6 @@ async function pollCloud() {
   state.selections =
     normalized.selections || {};
   state.filters = normalized.filters || state.filters;
-  state.workspaceMode =
-    (remote.mode || window.WSCNCloud.getMode()) === "zhoubao"
-      ? "zhoubao"
-      : "caitong";
   document.body.dataset.workspaceMode = state.workspaceMode;
 
   state.edition =
@@ -1478,6 +1484,14 @@ els.copyReportButton.addEventListener(
   "click",
   () =>
     copyText(els.reportText.value)
+);
+
+els.reviewLogoutButton.addEventListener(
+  "click",
+  () => {
+    window.WSCNCloud.logout();
+    window.location.href = "./index.html";
+  }
 );
 
 initialLoad();

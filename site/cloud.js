@@ -8,6 +8,10 @@
 
   let remoteVersion = 0;
   let lastRemoteUpdatedAt = "";
+  // Password and mode are pinned in memory for the lifetime of this page.
+  // This prevents another browser tab from silently switching this tab from
+  // Caitong to Zhoubao (or the reverse) by changing shared localStorage.
+  let sessionPassword = localStorage.getItem(PASSWORD_KEY) || "";
   let currentMode = localStorage.getItem(MODE_KEY) || "caitong";
   let statusListener = null;
 
@@ -51,11 +55,12 @@
   }
 
   function getPassword() {
-    return localStorage.getItem(PASSWORD_KEY) || "";
+    return sessionPassword;
   }
 
   function setPassword(value) {
-    if (value) localStorage.setItem(PASSWORD_KEY, value);
+    sessionPassword = String(value || "");
+    if (sessionPassword) localStorage.setItem(PASSWORD_KEY, sessionPassword);
     else localStorage.removeItem(PASSWORD_KEY);
   }
 
@@ -104,7 +109,6 @@
             <span class="cloud-login-kicker">SHARED WORKSPACE</span>
             <h2 id="wscnCloudLoginTitle">进入工作区</h2>
           </div>
-          <button type="button" class="cloud-login-close" aria-label="关闭">×</button>
         </div>
         <form class="cloud-login-form">
           <label for="wscnCloudPasswordInput">接入口令</label>
@@ -128,7 +132,6 @@
     const overlay = ensureLoginOverlay();
     const form = overlay.querySelector(".cloud-login-form");
     const input = overlay.querySelector(".cloud-login-input");
-    const closeButton = overlay.querySelector(".cloud-login-close");
     const error = overlay.querySelector(".cloud-login-error");
 
     input.value = "";
@@ -139,7 +142,6 @@
       const finish = (value) => {
         overlay.hidden = true;
         form.onsubmit = null;
-        closeButton.onclick = null;
         loginPromise = null;
         resolve(value);
       };
@@ -156,7 +158,6 @@
         finish(password);
       };
 
-      closeButton.onclick = () => finish("");
       requestAnimationFrame(() => input.focus());
     });
 
@@ -202,12 +203,14 @@
 
   function defaultState() {
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       selections: {},
       edition: "",
       filters: {
         minLength: 10,
         blockedTerms: "",
+        filterPacks: [],
+        activeFilterPackIds: [],
       },
       reviewLayout: {
         domestic: [],
@@ -236,6 +239,28 @@
         ? Math.min(10000, Math.floor(minLength))
         : 10;
     base.filters.blockedTerms = String(input.filters?.blockedTerms || "");
+
+    const seenPackIds = new Set();
+    base.filters.filterPacks = Array.isArray(input.filters?.filterPacks)
+      ? input.filters.filterPacks
+          .map((pack, index) => {
+            if (!pack || typeof pack !== "object") return null;
+            const id = String(pack.id || `pack-${index + 1}`).trim();
+            const name = String(pack.name || "").trim();
+            const terms = String(pack.terms || "");
+            if (!id || !name || seenPackIds.has(id)) return null;
+            seenPackIds.add(id);
+            return { id, name: name.slice(0, 40), terms };
+          })
+          .filter(Boolean)
+      : [];
+
+    const validPackIds = new Set(base.filters.filterPacks.map((pack) => pack.id));
+    base.filters.activeFilterPackIds = Array.isArray(input.filters?.activeFilterPackIds)
+      ? [...new Set(input.filters.activeFilterPackIds.map(String))].filter((id) =>
+          validPackIds.has(id)
+        )
+      : [];
 
     if (
       input.reviewLayout &&
@@ -370,9 +395,16 @@
 
   function isMeaningfullyEmpty(state) {
     const normalized = normalizeState(state);
+    const filtersAreDefault =
+      normalized.filters.minLength === 10 &&
+      !normalized.filters.blockedTerms.trim() &&
+      normalized.filters.filterPacks.length === 0 &&
+      normalized.filters.activeFilterPackIds.length === 0;
+
     return (
       Object.keys(normalized.selections).length === 0 &&
       !normalized.edition &&
+      filtersAreDefault &&
       normalized.reviewLayout.domestic.length === 0 &&
       normalized.reviewLayout.foreign.length === 0
     );
@@ -393,7 +425,6 @@
     }
 
     const mode = payload.mode === "zhoubao" ? "zhoubao" : "caitong";
-    setMode(mode);
     remoteVersion = Number(payload.version || 0);
     lastRemoteUpdatedAt = payload.updated_at || "";
 
@@ -405,7 +436,7 @@
     };
   }
 
-  async function loadWorkspace({ allowPrompt = true } = {}) {
+  async function loadWorkspace({ allowPrompt = true, freshLogin = false } = {}) {
     const preMode = getMode();
     const preLocal = migrateLegacyLocalIfNeeded(preMode);
 
@@ -421,9 +452,12 @@
     }
 
     let password = getPassword();
+    const hadCachedPassword = Boolean(password);
+    let enteredNow = Boolean(freshLogin);
 
     if (!password && allowPrompt) {
       password = await requestPassword();
+      enteredNow = Boolean(password);
     }
 
     if (!password) {
@@ -441,6 +475,17 @@
       emitStatus("正在读取云端…", "loading");
 
       const remote = await loadRemoteWithPassword(password);
+
+      // A new login may resolve to either workspace. Once resolved, this page
+      // remains pinned to that mode until the user explicitly logs out.
+      if (enteredNow) {
+        setMode(remote.mode);
+      } else if (remote.mode !== preMode) {
+        const mismatch = new Error("workspace_mode_mismatch");
+        mismatch.code = "workspace_mode_mismatch";
+        throw mismatch;
+      }
+
       const local = migrateLegacyLocalIfNeeded(remote.mode);
 
       // Only migrate an existing local caitong workspace into an empty caitong cloud.
@@ -477,22 +522,36 @@
             "口令不正确，请重新输入"
           );
           if (retryPassword) {
-            return loadWorkspace({ allowPrompt: false });
+            return loadWorkspace({ allowPrompt: false, freshLogin: true });
           }
         }
 
         emitStatus("云端口令错误 · 当前使用本机", "error");
+      } else if (error?.code === "workspace_mode_mismatch") {
+        console.error(error);
+        emitStatus("工作区已锁定，请退出后重新进入", "error");
       } else if (error?.code === "cloud_timeout") {
         console.error(error);
-        emitStatus("云端连接超时 · 当前使用本机", "error");
+        emitStatus(
+          hadCachedPassword ? "云端连接超时 · 当前使用本机" : "云端连接超时 · 请稍后重新进入",
+          "error"
+        );
       } else {
         console.error(error);
-        emitStatus("云端暂不可用 · 当前使用本机", "error");
+        emitStatus(
+          hadCachedPassword ? "云端暂不可用 · 当前使用本机" : "云端暂不可用 · 请稍后重新进入",
+          "error"
+        );
       }
+
+      // A freshly entered password has not yet been mapped to a workspace by Supabase.
+      // Do not expose the previously used workspace's local cache as a fallback.
+      if (!hadCachedPassword) setPassword("");
+      const safeFallback = hadCachedPassword ? preLocal : defaultState();
 
       return {
         cloud: false,
-        state: preLocal,
+        state: safeFallback,
         version: 0,
         updatedAt: "",
         mode: preMode,
@@ -547,7 +606,15 @@
       }
 
       const returnedMode =
-        payload.mode === "zhoubao" ? "zhoubao" : mode;
+        payload.mode === "zhoubao" ? "zhoubao" : "caitong";
+
+      // A logged-in session is pinned to one workspace. Never switch modes as a side effect of save.
+      if (returnedMode !== mode) {
+        const mismatch = new Error("workspace_mode_mismatch");
+        mismatch.code = "workspace_mode_mismatch";
+        throw mismatch;
+      }
+
       setMode(returnedMode);
       remoteVersion = Number(payload.version || remoteVersion + 1);
       lastRemoteUpdatedAt = payload.updated_at || "";
@@ -591,16 +658,23 @@
     if (!password) return null;
 
     try {
-      return await loadRemoteWithPassword(password);
+      const remote = await loadRemoteWithPassword(password);
+      if (remote.mode !== getMode()) {
+        emitStatus("工作区已锁定，请退出后重新进入", "error");
+        return null;
+      }
+      return remote;
     } catch (error) {
       console.error(error);
       return null;
     }
   }
 
-  function reconnect() {
+  function logout() {
     setPassword("");
-    return loadWorkspace({ allowPrompt: true });
+    remoteVersion = 0;
+    lastRemoteUpdatedAt = "";
+    emitStatus("已退出", "neutral");
   }
 
   function getPollIntervalMs() {
@@ -620,7 +694,7 @@
     loadWorkspace,
     saveWorkspace,
     refreshRemoteIfNewer,
-    reconnect,
+    logout,
     getPassword,
     setPassword,
     migrateLegacyPasswordIfNeeded,

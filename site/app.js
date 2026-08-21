@@ -6,7 +6,11 @@ const state = {
   filters: {
     minLength: 10,
     blockedTerms: "",
+    filterPacks: [],
+    activeFilterPackIds: [],
   },
+  editingFilterPackId: "",
+  openFilterPackMenuId: "",
   newsView: "filtered",
   reviewLayout: { domestic: [], foreign: [] },
   selectedNavUid: null,
@@ -40,7 +44,7 @@ const els = {
   nextSelectedButton: document.getElementById("nextSelectedButton"),
   selectedNavPosition: document.getElementById("selectedNavPosition"),
   cloudStatus: document.getElementById("cloudStatus"),
-  cloudReconnectButton: document.getElementById("cloudReconnectButton"),
+  cloudLogoutButton: document.getElementById("cloudLogoutButton"),
   workspaceModeLabel: document.getElementById("workspaceModeLabel"),
   reportMaterialLabel: document.getElementById("reportMaterialLabel"),
   rawNewsTab: document.getElementById("rawNewsTab"),
@@ -49,6 +53,12 @@ const els = {
   filteredNewsCount: document.getElementById("filteredNewsCount"),
   minLengthInput: document.getElementById("minLengthInput"),
   blockedTermsInput: document.getElementById("blockedTermsInput"),
+  effectiveFilterTermCount: document.getElementById("effectiveFilterTermCount"),
+  filterPackNameInput: document.getElementById("filterPackNameInput"),
+  saveFilterPackButton: document.getElementById("saveFilterPackButton"),
+  cancelFilterPackEditButton: document.getElementById("cancelFilterPackEditButton"),
+  filterPackList: document.getElementById("filterPackList"),
+  filterPackStatus: document.getElementById("filterPackStatus"),
 };
 
 let filterSaveTimer = null;
@@ -186,18 +196,38 @@ function formatTimelineWeekday(iso) {
 
 function normalizeFilters(filters) {
   const minLength = Number(filters?.minLength);
+  const seen = new Set();
+  const filterPacks = Array.isArray(filters?.filterPacks)
+    ? filters.filterPacks
+        .map((pack, index) => {
+          if (!pack || typeof pack !== "object") return null;
+          const id = String(pack.id || `pack-${index + 1}`).trim();
+          const name = String(pack.name || "").trim();
+          const terms = String(pack.terms || "");
+          if (!id || !name || seen.has(id)) return null;
+          seen.add(id);
+          return { id, name: name.slice(0, 40), terms };
+        })
+        .filter(Boolean)
+    : [];
+  const validIds = new Set(filterPacks.map((pack) => pack.id));
+
   return {
     minLength:
       Number.isFinite(minLength) && minLength >= 0
         ? Math.min(10000, Math.floor(minLength))
         : 10,
     blockedTerms: String(filters?.blockedTerms || ""),
+    filterPacks,
+    activeFilterPackIds: Array.isArray(filters?.activeFilterPackIds)
+      ? [...new Set(filters.activeFilterPackIds.map(String))].filter((id) => validIds.has(id))
+      : [],
   };
 }
 
 function workspaceSnapshot() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     selections: state.selections,
     edition: state.workspaceMode === "zhoubao" ? "" : (state.edition || getPreferredEdition()),
     filters: state.filters,
@@ -363,18 +393,36 @@ function itemCharacterCount(item) {
   return Array.from(itemFilterText(item).replace(/\s+/g, "")).length;
 }
 
-function blockedTerms() {
-  return state.filters.blockedTerms
+function splitFilterTerms(value) {
+  return String(value || "")
     .split(/\r?\n/)
     .map((term) => term.trim())
     .filter(Boolean);
+}
+
+function effectiveBlockedTerms() {
+  const combined = [...splitFilterTerms(state.filters.blockedTerms)];
+  const activeIds = new Set(state.filters.activeFilterPackIds || []);
+
+  for (const pack of state.filters.filterPacks || []) {
+    if (!activeIds.has(pack.id)) continue;
+    combined.push(...splitFilterTerms(pack.terms));
+  }
+
+  const seen = new Set();
+  return combined.filter((term) => {
+    const key = term.toLocaleLowerCase("zh-CN");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function passesUserFilters(item) {
   if (itemCharacterCount(item) < state.filters.minLength) return false;
 
   const haystack = itemFilterText(item).toLocaleLowerCase("zh-CN");
-  return !blockedTerms().some((term) =>
+  return !effectiveBlockedTerms().some((term) =>
     haystack.includes(term.toLocaleLowerCase("zh-CN"))
   );
 }
@@ -402,6 +450,50 @@ function syncFilterInputs() {
   if (document.activeElement !== els.blockedTermsInput) {
     els.blockedTermsInput.value = state.filters.blockedTerms;
   }
+}
+
+function setFilterPackStatus(message = "", kind = "neutral") {
+  els.filterPackStatus.textContent = message;
+  els.filterPackStatus.dataset.kind = kind;
+}
+
+function filterPackById(id) {
+  return (state.filters.filterPacks || []).find((pack) => pack.id === id) || null;
+}
+
+function filterPackHtml(pack) {
+  const active = (state.filters.activeFilterPackIds || []).includes(pack.id);
+  const open = state.openFilterPackMenuId === pack.id;
+  const termCount = splitFilterTerms(pack.terms).length;
+  return `
+    <div class="filter-pack-card ${active ? "active" : ""}" data-pack-id="${escapeHtml(pack.id)}">
+      <button class="filter-pack-toggle" type="button" data-pack-toggle="${escapeHtml(pack.id)}" aria-pressed="${String(active)}">
+        <span class="filter-pack-check" aria-hidden="true">${active ? "✓" : ""}</span>
+        <span class="filter-pack-copy">
+          <strong>${escapeHtml(pack.name)}</strong>
+          <small>${termCount} 个词${active ? " · 已启用" : ""}</small>
+        </span>
+      </button>
+      <button class="filter-pack-more" type="button" data-pack-menu-toggle="${escapeHtml(pack.id)}" aria-label="词包更多操作">...</button>
+      <div class="filter-pack-menu" ${open ? "" : "hidden"}>
+        <button type="button" data-pack-action="edit" data-pack-id="${escapeHtml(pack.id)}">编辑词包</button>
+        <button type="button" data-pack-action="delete" data-pack-id="${escapeHtml(pack.id)}">删除此包</button>
+      </div>
+    </div>`;
+}
+
+function renderFilterPacks() {
+  const packs = state.filters.filterPacks || [];
+  els.filterPackList.innerHTML = packs.length
+    ? packs.map(filterPackHtml).join("")
+    : '<span class="filter-pack-empty">还没有保存词包</span>';
+
+  const effectiveCount = effectiveBlockedTerms().length;
+  els.effectiveFilterTermCount.textContent = `当前生效 ${effectiveCount} 个词`;
+
+  const editingPack = filterPackById(state.editingFilterPackId);
+  els.saveFilterPackButton.textContent = editingPack ? "保存修改" : "保存为词包";
+  els.cancelFilterPackEditButton.hidden = !editingPack;
 }
 
 function renderNewsTabs() {
@@ -660,6 +752,7 @@ function render() {
   els.statusText.textContent = state.data.generated_at ? "已同步" : "已读取";
 
   syncFilterInputs();
+  renderFilterPacks();
   renderNewsTabs();
   renderSelectionStatus();
   updateSelectedNavigator();
@@ -713,18 +806,27 @@ async function pollCloud() {
   if (!remote) return;
 
   const version = Number(remote.version || 0);
-  const modeChanged = remote.mode && remote.mode !== state.workspaceMode;
 
-  if (version > Number(state.cloudVersion || 0) || modeChanged) {
+  // The current session is locked to the workspace selected at login.
+  // Never jump from Caitong to Zhoubao (or the reverse) during background polling.
+  if (remote.mode && remote.mode !== state.workspaceMode) {
+    setCloudStatus({
+      text: "工作区状态异常，请退出后重新进入",
+      kind: "error",
+      mode: state.workspaceMode,
+    });
+    return;
+  }
+
+  if (version > Number(state.cloudVersion || 0)) {
     state.applyingRemote = true;
     state.cloudVersion = version;
-    updateWorkspaceModeUI(remote.mode || window.WSCNCloud.getMode());
     applyWorkspace(remote.state, { renderNow: true });
     state.applyingRemote = false;
     setCloudStatus({
       text: `${window.WSCNCloud.modeLabel()}工作区已同步`,
       kind: "success",
-      mode: remote.mode,
+      mode: state.workspaceMode,
     });
   }
 }
@@ -753,6 +855,118 @@ els.blockedTermsInput.addEventListener("input", () => {
   state.filters.blockedTerms = els.blockedTermsInput.value;
   render();
   scheduleFilterSave();
+});
+
+els.saveFilterPackButton.addEventListener("click", async () => {
+  const name = els.filterPackNameInput.value.trim();
+  const terms = String(state.filters.blockedTerms || "");
+
+  if (!name) {
+    setFilterPackStatus("请先填写词包名称", "error");
+    els.filterPackNameInput.focus();
+    return;
+  }
+  if (!splitFilterTerms(terms).length) {
+    setFilterPackStatus("筛选词为空，无法保存词包", "error");
+    els.blockedTermsInput.focus();
+    return;
+  }
+
+  if (state.editingFilterPackId) {
+    const pack = filterPackById(state.editingFilterPackId);
+    if (!pack) {
+      state.editingFilterPackId = "";
+      setFilterPackStatus("原词包不存在，请重新保存", "error");
+      renderFilterPacks();
+      return;
+    }
+    pack.name = name.slice(0, 40);
+    pack.terms = terms;
+    state.editingFilterPackId = "";
+    els.filterPackNameInput.value = "";
+    setFilterPackStatus("词包已更新", "success");
+  } else {
+    const id = `pack-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    state.filters.filterPacks.push({ id, name: name.slice(0, 40), terms });
+    els.filterPackNameInput.value = "";
+    setFilterPackStatus("词包已保存；点击词包可启用", "success");
+  }
+
+  render();
+  await persistWorkspace();
+});
+
+els.cancelFilterPackEditButton.addEventListener("click", () => {
+  state.editingFilterPackId = "";
+  els.filterPackNameInput.value = "";
+  setFilterPackStatus("已退出词包编辑", "neutral");
+  renderFilterPacks();
+});
+
+els.filterPackList.addEventListener("click", async (event) => {
+  const menuToggle = event.target.closest("[data-pack-menu-toggle]");
+  if (menuToggle) {
+    const id = String(menuToggle.dataset.packMenuToggle || "");
+    state.openFilterPackMenuId = state.openFilterPackMenuId === id ? "" : id;
+    renderFilterPacks();
+    return;
+  }
+
+  const actionButton = event.target.closest("[data-pack-action]");
+  if (actionButton) {
+    const id = String(actionButton.dataset.packId || "");
+    const pack = filterPackById(id);
+    state.openFilterPackMenuId = "";
+    if (!pack) {
+      renderFilterPacks();
+      return;
+    }
+
+    if (actionButton.dataset.packAction === "edit") {
+      state.editingFilterPackId = id;
+      state.filters.blockedTerms = pack.terms;
+      els.blockedTermsInput.value = pack.terms;
+      els.filterPackNameInput.value = pack.name;
+      setFilterPackStatus(`正在编辑「${pack.name}」；文本框内容已替换为该词包`, "neutral");
+      render();
+      await persistWorkspace();
+      return;
+    }
+
+    if (actionButton.dataset.packAction === "delete") {
+      state.filters.filterPacks = state.filters.filterPacks.filter((item) => item.id !== id);
+      state.filters.activeFilterPackIds = state.filters.activeFilterPackIds.filter((item) => item !== id);
+      if (state.editingFilterPackId === id) {
+        state.editingFilterPackId = "";
+        els.filterPackNameInput.value = "";
+      }
+      setFilterPackStatus(`已删除词包「${pack.name}」`, "success");
+      render();
+      await persistWorkspace();
+      return;
+    }
+  }
+
+  const toggle = event.target.closest("[data-pack-toggle]");
+  if (!toggle) return;
+  const id = String(toggle.dataset.packToggle || "");
+  if (!filterPackById(id)) return;
+
+  const active = new Set(state.filters.activeFilterPackIds || []);
+  if (active.has(id)) active.delete(id);
+  else active.add(id);
+  state.filters.activeFilterPackIds = [...active];
+  state.openFilterPackMenuId = "";
+  setFilterPackStatus("已更新启用词包；多个词包按屏蔽词并集生效", "success");
+  render();
+  await persistWorkspace();
+});
+
+document.addEventListener("click", (event) => {
+  if (!state.openFilterPackMenuId) return;
+  if (event.target.closest(".filter-pack-card")) return;
+  state.openFilterPackMenuId = "";
+  renderFilterPacks();
 });
 
 els.timeline.addEventListener("click", async (event) => {
@@ -807,11 +1021,9 @@ els.generateReportButton.addEventListener("click", async () => {
 els.previousSelectedButton.addEventListener("click", () => navigateSelected(-1));
 els.nextSelectedButton.addEventListener("click", () => navigateSelected(1));
 
-els.cloudReconnectButton.addEventListener("click", async () => {
-  const result = await window.WSCNCloud.reconnect();
-  state.cloudVersion = result.version || 0;
-  updateWorkspaceModeUI(result.mode || window.WSCNCloud.getMode());
-  applyWorkspace(result.state, { renderNow: true });
+els.cloudLogoutButton.addEventListener("click", () => {
+  window.WSCNCloud.logout();
+  window.location.reload();
 });
 
 initialLoad();
