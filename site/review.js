@@ -1497,7 +1497,7 @@ els.reviewLogoutButton.addEventListener(
   "click",
   () => {
     window.WSCNCloud.logout();
-    window.location.href = "./index.html";
+    window.location.replace(`./index.html?login=${Date.now()}`);
   }
 );
 

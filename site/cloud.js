@@ -671,9 +671,17 @@
   }
 
   function logout() {
-    setPassword("");
+    // Fully terminate the current workspace session.
+    // The legacy password must also be removed; otherwise a page reload can
+    // silently migrate it back and immediately log the user into Caitong.
+    sessionPassword = "";
+    localStorage.removeItem(PASSWORD_KEY);
+    localStorage.removeItem(LEGACY_PASSWORD_KEY);
+    localStorage.removeItem(MODE_KEY);
+    currentMode = "caitong";
     remoteVersion = 0;
     lastRemoteUpdatedAt = "";
+    loginPromise = null;
     emitStatus("已退出", "neutral");
   }
 

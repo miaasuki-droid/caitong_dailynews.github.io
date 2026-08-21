@@ -1093,7 +1093,7 @@ els.nextSelectedButton.addEventListener("click", () => navigateSelected(1));
 
 els.cloudLogoutButton.addEventListener("click", () => {
   window.WSCNCloud.logout();
-  window.location.reload();
+  window.location.replace(`./index.html?login=${Date.now()}`);
 });
 
 let historyScrollTicking = false;
