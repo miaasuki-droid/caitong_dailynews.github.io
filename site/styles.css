@@ -3089,3 +3089,171 @@ body {
     font-size: 12px;
   }
 }
+
+/* ===== v5.1：白色背景 + 淡蓝新闻卡 + 通用口令入口 ===== */
+html,
+body,
+.review-body {
+  background: #ffffff !important;
+}
+
+body {
+  background-image: none !important;
+}
+
+.topbar,
+.review-topbar {
+  background: #ffffff !important;
+}
+
+.news-card {
+  background: #f2f9ff !important;
+  border-color: #d5ebfb !important;
+}
+
+.news-card:hover {
+  background: #eaf6ff !important;
+  border-color: #b9ddf6 !important;
+}
+
+.news-item.score-3 .news-card {
+  background: #edf8ff !important;
+}
+
+.review-item {
+  background: #f2f9ff !important;
+  border-color: #d5eafa !important;
+}
+
+.review-item.in-group {
+  background: #f7fbff !important;
+}
+
+.board {
+  background: #ffffff !important;
+}
+
+/* 周报没有早报 / 晚报选择。 */
+body[data-workspace-mode="zhoubao"] .edition-control {
+  display: none !important;
+}
+
+/* 自定义登录框：只要求输入口令，不提示口令与模式的对应关系。 */
+.cloud-login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 24, 32, 0.24);
+  backdrop-filter: blur(5px);
+}
+
+.cloud-login-overlay[hidden] {
+  display: none !important;
+}
+
+.cloud-login-card {
+  width: min(390px, 100%);
+  padding: 20px;
+  border: 1px solid #cfe6f7;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 22px 70px rgba(0, 76, 160, 0.18);
+}
+
+.cloud-login-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.cloud-login-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #004ca0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.cloud-login-head h2 {
+  margin: 0;
+  color: #111820;
+  font-size: 21px;
+}
+
+.cloud-login-close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: #eef8ff;
+  color: #567087;
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.cloud-login-form label {
+  display: block;
+  margin-bottom: 7px;
+  color: #53677a;
+  font-size: 12px;
+}
+
+.cloud-login-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  border: 1px solid #cfe3f2;
+  border-radius: 10px;
+  outline: none;
+  background: #f8fcff;
+  color: #111820;
+  font: inherit;
+  font-size: 14px;
+}
+
+.cloud-login-input:focus {
+  border-color: #62c0fe;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(98, 192, 254, 0.18);
+}
+
+.cloud-login-error {
+  min-height: 18px;
+  margin: 6px 0 8px;
+  color: #9a2c2c;
+  font-size: 11px;
+}
+
+.cloud-login-submit {
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #004ca0;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.cloud-login-submit:hover {
+  background: #003d82;
+}
+
+@media (max-width: 780px) {
+  .cloud-login-overlay {
+    padding: 12px;
+  }
+
+  .cloud-login-card {
+    padding: 17px;
+    border-radius: 14px;
+  }
+}

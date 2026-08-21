@@ -1,6 +1,7 @@
 (() => {
   const CONFIG = window.WSCN_CLOUD_CONFIG || {};
   const PASSWORD_KEY = "wscn-cloud-workspace-password-v2";
+  const LEGACY_PASSWORD_KEY = "wscn-cloud-workspace-password-v1";
   const MODE_KEY = "wscn-cloud-workspace-mode-v2";
   const LEGACY_LOCAL_STATE_KEY = "wscn-shared-workspace-v1";
   const LOCAL_STATE_PREFIX = "wscn-shared-workspace-v2:";
@@ -75,22 +76,91 @@
     return `${LOCAL_STATE_PREFIX}${mode === "zhoubao" ? "zhoubao" : "caitong"}`;
   }
 
-  function promptPassword(force = false) {
+  let loginPromise = null;
+
+  function migrateLegacyPasswordIfNeeded() {
+    if (getPassword()) return getPassword();
+
+    const legacy = String(localStorage.getItem(LEGACY_PASSWORD_KEY) || "").trim();
+    if (!legacy) return "";
+
+    setPassword(legacy);
+    setMode("caitong");
+    return legacy;
+  }
+
+  function ensureLoginOverlay() {
+    let overlay = document.getElementById("wscnCloudLoginOverlay");
+    if (overlay) return overlay;
+
+    overlay = document.createElement("div");
+    overlay.id = "wscnCloudLoginOverlay";
+    overlay.className = "cloud-login-overlay";
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <section class="cloud-login-card" role="dialog" aria-modal="true" aria-labelledby="wscnCloudLoginTitle">
+        <div class="cloud-login-head">
+          <div>
+            <span class="cloud-login-kicker">SHARED WORKSPACE</span>
+            <h2 id="wscnCloudLoginTitle">进入工作区</h2>
+          </div>
+          <button type="button" class="cloud-login-close" aria-label="关闭">×</button>
+        </div>
+        <form class="cloud-login-form">
+          <label for="wscnCloudPasswordInput">接入口令</label>
+          <input id="wscnCloudPasswordInput" class="cloud-login-input" type="password" autocomplete="current-password" placeholder="请输入口令" />
+          <p class="cloud-login-error" aria-live="polite"></p>
+          <button class="cloud-login-submit" type="submit">进入</button>
+        </form>
+      </section>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function requestPassword(force = false, errorMessage = "") {
     if (!force) {
-      const cached = getPassword();
-      if (cached) return cached;
+      const cached = getPassword() || migrateLegacyPasswordIfNeeded();
+      if (cached) return Promise.resolve(cached);
     }
 
-    const value = window.prompt(
-      "输入接入口令。\n输入 caitong 进入财通模式；输入 zhoubao 进入周报模式：",
-      ""
-    );
+    if (loginPromise) return loginPromise;
 
-    if (value === null) return "";
+    const overlay = ensureLoginOverlay();
+    const form = overlay.querySelector(".cloud-login-form");
+    const input = overlay.querySelector(".cloud-login-input");
+    const closeButton = overlay.querySelector(".cloud-login-close");
+    const error = overlay.querySelector(".cloud-login-error");
 
-    const password = value.trim();
-    if (password) setPassword(password);
-    return password;
+    input.value = "";
+    error.textContent = errorMessage;
+    overlay.hidden = false;
+
+    loginPromise = new Promise((resolve) => {
+      const finish = (value) => {
+        overlay.hidden = true;
+        form.onsubmit = null;
+        closeButton.onclick = null;
+        loginPromise = null;
+        resolve(value);
+      };
+
+      form.onsubmit = (event) => {
+        event.preventDefault();
+        const password = input.value.trim();
+        if (!password) {
+          error.textContent = "请输入口令";
+          input.focus();
+          return;
+        }
+        setPassword(password);
+        finish(password);
+      };
+
+      closeButton.onclick = () => finish("");
+      requestAnimationFrame(() => input.focus());
+    });
+
+    return loginPromise;
   }
 
   async function rpc(functionName, args) {
@@ -353,7 +423,7 @@
     let password = getPassword();
 
     if (!password && allowPrompt) {
-      password = promptPassword();
+      password = await requestPassword();
     }
 
     if (!password) {
@@ -402,8 +472,10 @@
         setPassword("");
 
         if (allowPrompt) {
-          window.alert("接入口令不正确，请重新输入。");
-          const retryPassword = promptPassword(true);
+          const retryPassword = await requestPassword(
+            true,
+            "口令不正确，请重新输入"
+          );
           if (retryPassword) {
             return loadWorkspace({ allowPrompt: false });
           }
@@ -536,6 +608,8 @@
     return Number.isFinite(value) && value >= 3000 ? value : 10000;
   }
 
+  migrateLegacyPasswordIfNeeded();
+
   window.WSCNCloud = {
     configured,
     defaultState,
@@ -549,6 +623,7 @@
     reconnect,
     getPassword,
     setPassword,
+    migrateLegacyPasswordIfNeeded,
     getMode,
     modeLabel,
     setStatusListener,

@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light" />
   <title>今日全球快讯</title>
   <meta name="description" content="财通固收早晚报快讯筛选工具" />
-  <link rel="stylesheet" href="./styles.css?v=500" />
+  <link rel="stylesheet" href="./styles.css?v=510" />
 </head>
 <body>
   <header class="topbar">
@@ -83,18 +83,18 @@
       </button>
       <div class="selection-workbench-body">
         <div class="selection-status">
-          <span class="label">早晚报素材</span>
+          <span id="reportMaterialLabel" class="label">早晚报素材</span>
           <strong id="selectedCount">已选 0 条</strong>
           <span id="selectedBreakdown" class="selection-breakdown">国内 0 · 国外 0 · 自选 0</span>
           <button id="clearManualButton" class="clear-manual-button" type="button">清空自选</button>
         </div>
-        <div class="edition-control">
+        <div id="editionControl" class="edition-control">
           <span class="label">报告类型</span>
           <div class="edition-toggle" role="group" aria-label="报告类型">
             <button id="morningButton" class="edition-button" data-edition="morning" type="button">早报</button>
             <button id="eveningButton" class="edition-button" data-edition="evening" type="button">晚报</button>
           </div>
-          <span class="edition-note">北京时间 14:00 前默认早报，14:00 起默认晚报</span>
+          <span class="edition-note">北京时间 02:00–13:59 默认早报，14:00–次日01:59 默认晚报</span>
         </div>
         <div class="selection-actions">
           <button id="clearSelectionButton" class="secondary-button" type="button">清空选择</button>
@@ -130,8 +130,8 @@
     </button>
   </div>
 
-  <script src="./cloud-config.js?v=500"></script>
-  <script src="./cloud.js?v=500"></script>
-  <script src="./app.js?v=500"></script>
+  <script src="./cloud-config.js?v=510"></script>
+  <script src="./cloud.js?v=510"></script>
+  <script src="./app.js?v=510"></script>
 </body>
 </html>

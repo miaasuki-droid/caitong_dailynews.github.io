@@ -41,6 +41,7 @@ const els = {
   globalNodeMenuExtra: document.getElementById("globalNodeMenuExtra"),
   reviewCloudStatus: document.getElementById("reviewCloudStatus"),
   reportHint: document.getElementById("reportHint"),
+  reviewTitle: document.getElementById("reviewTitle"),
 };
 
 const CIRCLED = [
@@ -90,19 +91,29 @@ function workspaceSnapshot() {
   return {
     schemaVersion: 2,
     selections: state.selections,
-    edition: state.edition,
+    edition: state.workspaceMode === "zhoubao" ? "" : state.edition,
     filters: state.filters,
     reviewLayout: state.boards,
   };
 }
 
+function updateReviewModeUI() {
+  const isZhoubao = state.workspaceMode === "zhoubao";
+  document.body.dataset.workspaceMode = state.workspaceMode;
+  if (els.reviewTitle) {
+    els.reviewTitle.textContent = isZhoubao ? "整理周报" : "整理早晚报";
+  }
+  document.title = isZhoubao ? "整理周报" : "整理早晚报";
+  if (isZhoubao) state.edition = "";
+}
+
 function setCloudStatus({ text, kind, mode }) {
   state.workspaceMode =
     (mode || window.WSCNCloud.getMode()) === "zhoubao" ? "zhoubao" : "caitong";
+  updateReviewModeUI();
   els.reviewCloudStatus.textContent =
     `${state.workspaceMode === "zhoubao" ? "周报" : "财通"} · ${text}`;
   els.reviewCloudStatus.dataset.kind = kind || "neutral";
-  document.body.dataset.workspaceMode = state.workspaceMode;
 }
 
 async function persistWorkspace() {
@@ -277,6 +288,7 @@ function boardHtml(category) {
 }
 
 function render() {
+  updateReviewModeUI();
   els.domesticBoard.innerHTML = boardHtml("domestic");
   els.foreignBoard.innerHTML = boardHtml("foreign");
 
@@ -288,7 +300,7 @@ function render() {
 
   els.reviewCount.textContent =
     state.workspaceMode === "zhoubao"
-      ? `共 ${domesticCount + foreignCount} 条 · 周报模式`
+      ? `共 ${domesticCount + foreignCount} 条 · 周报`
       : `共 ${domesticCount + foreignCount} 条 · ${
           state.edition === "evening" ? "晚报" : "早报"
         }`;
@@ -296,7 +308,7 @@ function render() {
   if (els.reportHint) {
     els.reportHint.textContent =
       state.workspaceMode === "zhoubao"
-        ? "周报模式：不编号；每条按“新闻标题 → 换行 → 几月几日，具体新闻”输出。"
+        ? "周报：不编号；每条按“新闻标题 → 换行 → 几月几日，具体新闻”输出。"
         : "同一条新闻内部不留空行；不同新闻之间保留一个空行。组标题使用（数字），组内新闻使用①②③重新编号。";
   }
 }
@@ -1061,10 +1073,11 @@ async function initialLoad() {
     document.body.dataset.workspaceMode = state.workspaceMode;
 
     state.edition =
-      normalized.edition === "morning" ||
-      normalized.edition === "evening"
-        ? normalized.edition
-        : "morning";
+      state.workspaceMode === "zhoubao"
+        ? ""
+        : (normalized.edition === "morning" || normalized.edition === "evening"
+            ? normalized.edition
+            : "morning");
 
     state.boards =
       reconcileLayoutWithSelections(
@@ -1101,10 +1114,11 @@ async function initialLoad() {
     document.body.dataset.workspaceMode = state.workspaceMode;
 
     state.edition =
-      normalized.edition === "morning" ||
-      normalized.edition === "evening"
-        ? normalized.edition
-        : state.edition;
+      state.workspaceMode === "zhoubao"
+        ? ""
+        : (normalized.edition === "morning" || normalized.edition === "evening"
+            ? normalized.edition
+            : state.edition);
 
     state.boards =
       reconcileLayoutWithSelections(
@@ -1171,7 +1185,7 @@ async function pollCloud() {
   document.body.dataset.workspaceMode = state.workspaceMode;
 
   state.edition =
-    normalized.edition || state.edition;
+    state.workspaceMode === "zhoubao" ? "" : (normalized.edition || state.edition);
 
   state.boards =
     reconcileLayoutWithSelections(

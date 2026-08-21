@@ -15,6 +15,8 @@ const state = {
   workspaceMode: "caitong",
 };
 
+const EDITION_OVERRIDE_KEY = "wscn-edition-override-v1";
+
 const els = {
   timeline: document.getElementById("timeline"),
   emptyState: document.getElementById("emptyState"),
@@ -40,6 +42,7 @@ const els = {
   cloudStatus: document.getElementById("cloudStatus"),
   cloudReconnectButton: document.getElementById("cloudReconnectButton"),
   workspaceModeLabel: document.getElementById("workspaceModeLabel"),
+  reportMaterialLabel: document.getElementById("reportMaterialLabel"),
   rawNewsTab: document.getElementById("rawNewsTab"),
   filteredNewsTab: document.getElementById("filteredNewsTab"),
   rawNewsCount: document.getElementById("rawNewsCount"),
@@ -91,7 +94,53 @@ function getBeijingHour() {
 }
 
 function getDefaultEdition() {
-  return getBeijingHour() >= 14 ? "evening" : "morning";
+  const hour = getBeijingHour();
+  return hour >= 14 || hour < 2 ? "evening" : "morning";
+}
+
+function getBeijingDateParts() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  return Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+}
+
+function currentEditionWindowKey() {
+  const date = getBeijingDateParts();
+  const hour = getBeijingHour();
+  const autoEdition = getDefaultEdition();
+  return `${date.year}-${date.month}-${date.day}:${hour < 2 ? "overnight" : autoEdition}`;
+}
+
+function getPreferredEdition() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(EDITION_OVERRIDE_KEY) || "null");
+    if (
+      saved &&
+      saved.windowKey === currentEditionWindowKey() &&
+      (saved.edition === "morning" || saved.edition === "evening")
+    ) {
+      return saved.edition;
+    }
+  } catch (_) {}
+  return getDefaultEdition();
+}
+
+function rememberEditionOverride(edition) {
+  sessionStorage.setItem(
+    EDITION_OVERRIDE_KEY,
+    JSON.stringify({
+      windowKey: currentEditionWindowKey(),
+      edition,
+    })
+  );
 }
 
 function formatTimelineTime(iso, fallback = "") {
@@ -150,7 +199,7 @@ function workspaceSnapshot() {
   return {
     schemaVersion: 2,
     selections: state.selections,
-    edition: state.edition || getDefaultEdition(),
+    edition: state.workspaceMode === "zhoubao" ? "" : (state.edition || getPreferredEdition()),
     filters: state.filters,
     reviewLayout: state.reviewLayout,
   };
@@ -158,19 +207,31 @@ function workspaceSnapshot() {
 
 function updateWorkspaceModeUI(mode = window.WSCNCloud.getMode()) {
   state.workspaceMode = mode === "zhoubao" ? "zhoubao" : "caitong";
-  els.workspaceModeLabel.textContent =
-    state.workspaceMode === "zhoubao" ? "周报模式" : "财通模式";
+  const hasPassword = Boolean(window.WSCNCloud.getPassword());
+  els.workspaceModeLabel.textContent = hasPassword
+    ? (state.workspaceMode === "zhoubao" ? "周报" : "财通")
+    : "共享工作区";
+  if (els.reportMaterialLabel) {
+    els.reportMaterialLabel.textContent =
+      state.workspaceMode === "zhoubao" ? "周报素材" : "早晚报素材";
+  }
   document.body.dataset.workspaceMode = state.workspaceMode;
+  if (state.workspaceMode === "zhoubao") {
+    state.edition = "";
+  } else if (!state.edition) {
+    state.edition = getPreferredEdition();
+  }
 }
 
 function applyWorkspace(workspace, { renderNow = true } = {}) {
   const normalized = window.WSCNCloud.normalizeState(workspace);
 
   state.selections = normalized.selections || {};
+  updateWorkspaceModeUI();
   state.edition =
-    normalized.edition === "morning" || normalized.edition === "evening"
-      ? normalized.edition
-      : getDefaultEdition();
+    state.workspaceMode === "zhoubao"
+      ? ""
+      : getPreferredEdition();
   state.filters = normalizeFilters(normalized.filters);
   state.reviewLayout =
     normalized.reviewLayout &&
@@ -179,7 +240,6 @@ function applyWorkspace(workspace, { renderNow = true } = {}) {
       ? normalized.reviewLayout
       : { domestic: [], foreign: [] };
 
-  updateWorkspaceModeUI();
   pruneSelectionsToHistory();
   syncFilterInputs();
 
@@ -442,8 +502,13 @@ function selectionCounts() {
 }
 
 function renderEdition() {
-  if (!state.edition) state.edition = getDefaultEdition();
+  if (state.workspaceMode === "zhoubao") {
+    els.morningButton.classList.remove("active");
+    els.eveningButton.classList.remove("active");
+    return;
+  }
 
+  if (!state.edition) state.edition = getPreferredEdition();
   els.morningButton.classList.toggle("active", state.edition === "morning");
   els.eveningButton.classList.toggle("active", state.edition === "evening");
 }
@@ -714,7 +779,9 @@ els.selectionDrawerToggle.addEventListener("click", () => {
 
 [els.morningButton, els.eveningButton].forEach((button) => {
   button.addEventListener("click", async () => {
+    if (state.workspaceMode === "zhoubao") return;
     state.edition = button.dataset.edition;
+    rememberEditionOverride(state.edition);
     renderEdition();
     await persistWorkspace();
   });
