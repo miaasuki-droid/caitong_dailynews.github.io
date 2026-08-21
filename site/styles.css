@@ -3257,3 +3257,314 @@ body[data-workspace-mode="zhoubao"] .edition-control {
     border-radius: 14px;
   }
 }
+
+
+/* ===== v5.1.2：恢复初版黑白体系，黑色强调替换为深蓝 ===== */
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --text: #17191d;
+  --muted: #727781;
+  --line: #e4e6ea;
+  --soft: #f7f8fa;
+  --accent: #004ca0;
+  --accent-soft: #f5f7fa;
+  --critical: #004ca0;
+  --light-blue: #004ca0;
+  --deep-blue: #004ca0;
+  --shadow: 0 8px 30px rgba(20, 24, 31, 0.055);
+}
+
+html,
+body {
+  background: var(--bg) !important;
+}
+
+body {
+  color: var(--text);
+  background-image: none !important;
+}
+
+/* 首页：恢复初版深色顶部，只把黑色替换成深蓝 */
+.topbar {
+  color: #ffffff !important;
+  background: #004ca0 !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+.topbar .eyebrow {
+  color: #c8d7e8 !important;
+}
+
+.topbar .subtitle {
+  color: #d8e2ee !important;
+}
+
+.topbar .subtitle a {
+  color: #ffffff !important;
+  border-bottom-color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.topbar .status-wrap {
+  color: #e0e7ef !important;
+}
+
+.topbar .status-dot {
+  background: #ffffff !important;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.14) !important;
+}
+
+/* 面板、搜索、筛选：回到白色 + 灰线 */
+.updated-card,
+.search-box,
+.cloud-box,
+.filter-shell,
+.review-help,
+.manual-add-panel,
+.report-panel,
+.review-group,
+.review-item,
+.board {
+  background: #ffffff !important;
+  border-color: #e1e4e8 !important;
+  box-shadow: var(--shadow);
+}
+
+.search-box:focus-within,
+.manual-news-input:focus,
+.report-text:focus,
+.threshold-input-wrap input:focus,
+.blocked-terms-control textarea:focus {
+  border-color: #8c939d !important;
+  box-shadow: 0 0 0 3px rgba(20, 24, 31, 0.045) !important;
+}
+
+.search-box svg {
+  stroke: #737983 !important;
+}
+
+/* 新闻恢复白底；重要新闻只用深蓝强调线，不铺蓝底 */
+.news-card,
+.news-card:hover,
+.news-item.score-3 .news-card {
+  background: #ffffff !important;
+  border-color: #e1e4e8 !important;
+}
+
+.news-card:hover {
+  border-color: #cdd1d7 !important;
+}
+
+.news-item.score-2 .news-card,
+.news-item.score-3 .news-card {
+  border-left-color: #004ca0 !important;
+}
+
+.news-item.score-2 .dot,
+.news-item.score-3 .dot {
+  background: #004ca0 !important;
+}
+
+.news-item.score-3 .dot {
+  box-shadow: 0 0 0 3px rgba(0, 76, 160, 0.10) !important;
+}
+
+.badge.important {
+  color: #004ca0 !important;
+  background: #f2f4f7 !important;
+}
+
+/* 主要交互：初版黑色按钮改成深蓝 */
+.action-button,
+.primary-action,
+.selection-drawer-toggle {
+  color: #ffffff !important;
+  background: #004ca0 !important;
+}
+
+.action-button:hover,
+.primary-action:hover,
+.selection-drawer-toggle:hover {
+  background: #003f86 !important;
+}
+
+.secondary-button,
+.clear-manual-button,
+.cloud-reconnect-button {
+  color: #5d626b !important;
+  background: #ffffff !important;
+  border-color: #dfe2e6 !important;
+}
+
+.secondary-button:hover:not(:disabled),
+.clear-manual-button:hover:not(:disabled),
+.cloud-reconnect-button:hover {
+  color: #004ca0 !important;
+  background: #ffffff !important;
+  border-color: #aeb4bd !important;
+}
+
+/* 早晚报选择恢复灰白，选中项以深蓝文字强调 */
+.edition-toggle {
+  background: #e8eaed !important;
+}
+
+.edition-button {
+  color: #666c76 !important;
+}
+
+.edition-button.active {
+  color: #004ca0 !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 5px rgba(20, 24, 31, 0.08) !important;
+}
+
+/* 国内/国外都统一用深蓝选中，减少杂色 */
+.classify-btn.domestic.selected,
+.classify-btn.foreign.selected {
+  color: #ffffff !important;
+  background: #004ca0 !important;
+  border-color: #004ca0 !important;
+}
+
+/* 原始新闻 / 筛选后新闻：保持黑白灰结构 */
+.filter-shell {
+  background: #ffffff !important;
+}
+
+.news-view-tab {
+  color: #606670 !important;
+  background: #ffffff !important;
+  border-color: #dfe2e6 !important;
+}
+
+.news-view-tab.active {
+  color: #004ca0 !important;
+  background: #f7f8fa !important;
+  border-color: #bfc4cb !important;
+}
+
+.tab-count,
+.news-view-tab.active .tab-count {
+  color: #666d76 !important;
+  background: #eceef1 !important;
+}
+
+.threshold-control,
+.blocked-terms-control {
+  background: #f9fafb !important;
+  border-color: #e2e4e8 !important;
+}
+
+.filter-label {
+  color: #555c65 !important;
+}
+
+.threshold-input-wrap input,
+.blocked-terms-control textarea {
+  color: #17191d !important;
+  background: #ffffff !important;
+  border-color: #d7dade !important;
+}
+
+/* 整理页保持初版白色顶部；深蓝只作为标题与主按钮强调 */
+.review-body {
+  background: #f4f5f7 !important;
+}
+
+.review-topbar {
+  background: #ffffff !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid #e0e2e6 !important;
+}
+
+.review-title,
+.review-topbar .dark-eyebrow {
+  color: #004ca0 !important;
+}
+
+.review-account-badge {
+  color: #666c76 !important;
+  background: #f8f9fa !important;
+  border-color: #e0e2e6 !important;
+}
+
+.review-item,
+.review-item.in-group {
+  background: #ffffff !important;
+  border-color: #e0e2e6 !important;
+}
+
+.review-group {
+  background: #ffffff !important;
+  border-color: #e0e2e6 !important;
+}
+
+.group-head {
+  background: #f7f8fa !important;
+  border-bottom-color: #e8eaed !important;
+}
+
+.board {
+  background: rgba(255, 255, 255, 0.42) !important;
+  border-color: #d6d9de !important;
+  box-shadow: none !important;
+}
+
+.node-menu-button {
+  color: #666c76 !important;
+  background: #f3f4f6 !important;
+}
+
+.node-menu-button:hover,
+.node-menu-button[aria-expanded="true"] {
+  color: #004ca0 !important;
+  background: #e7e9ed !important;
+}
+
+.global-node-menu {
+  border-color: #d8dbe0 !important;
+  box-shadow: 0 18px 48px rgba(20, 24, 31, 0.22) !important;
+}
+
+.global-menu-action {
+  color: #282c31 !important;
+  background: #f5f6f8 !important;
+}
+
+.global-menu-action:hover,
+.global-menu-extra-action:hover {
+  background: #e9ebef !important;
+}
+
+/* 已选新闻定位仍用深蓝，但不增加浅蓝背景 */
+.news-item.selected-nav-highlight .news-card {
+  border-color: #004ca0 !important;
+  box-shadow: 0 0 0 2px rgba(0, 76, 160, 0.12), var(--shadow) !important;
+}
+
+.selected-navigator {
+  border-color: #dfe2e6 !important;
+  box-shadow: 0 8px 24px rgba(20, 24, 31, 0.10) !important;
+}
+
+.selected-nav-button:hover {
+  color: #004ca0 !important;
+  background: #f4f5f7 !important;
+}
+
+/* 登录层保持纯白，主按钮深蓝 */
+.cloud-login-card {
+  background: #ffffff !important;
+  border-color: #dfe2e6 !important;
+}
+
+.cloud-login-submit {
+  background: #004ca0 !important;
+  color: #ffffff !important;
+}
+
+.cloud-login-submit:hover {
+  background: #003f86 !important;
+}
