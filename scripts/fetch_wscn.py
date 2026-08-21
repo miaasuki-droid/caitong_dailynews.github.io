@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import hashlib
 import html
 import json
 import re
+import time
 import sys
 import urllib.error
 import urllib.parse
@@ -23,8 +25,9 @@ CACHE_FILE = ROOT / "cache" / "news_history.json"
 
 PER_PAGE = 50
 MAX_PAGES = 40
+BACKFILL_MAX_PAGES = 200
 FETCH_WINDOW_HOURS = 24
-RETENTION_DAYS = 7
+RETENTION_DAYS = 10
 
 HEADERS = {
     "User-Agent": (
@@ -134,20 +137,31 @@ def item_key(item: dict[str, Any]) -> str:
     return "hash:" + hashlib.sha256(basis.encode("utf-8")).hexdigest()
 
 
-def collect_last_24h() -> list[dict[str, Any]]:
+def collect_window(
+    window_hours: int,
+    *,
+    max_pages: int = MAX_PAGES,
+    page_delay_seconds: float = 0.0,
+) -> list[dict[str, Any]]:
+    """Fetch a contiguous recent window from the WSCN live API.
+
+    Normal scheduled runs use 24 hours.  The v5 migration workflow calls this
+    once with 10 days so the rolling history cache is immediately backfilled.
+    """
     now = datetime.now(CST)
-    cutoff = now - timedelta(hours=FETCH_WINDOW_HOURS)
+    cutoff = now - timedelta(hours=window_hours)
 
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     cursor = None
+    reached_cutoff = False
+    exhausted = False
 
-    for _ in range(MAX_PAGES):
+    for page_index in range(max_pages):
         raw_items, next_cursor = fetch_page(cursor)
         if not raw_items:
+            exhausted = True
             break
-
-        reached_cutoff = False
 
         for raw in raw_items:
             ts = int(raw.get("display_time") or 0)
@@ -172,13 +186,38 @@ def collect_last_24h() -> list[dict[str, Any]]:
             seen.add(key)
             results.append(parsed)
 
-        if reached_cutoff or not next_cursor:
+        if reached_cutoff:
+            break
+
+        if not next_cursor:
+            exhausted = True
             break
 
         cursor = next_cursor
+        if page_delay_seconds > 0 and page_index + 1 < max_pages:
+            time.sleep(page_delay_seconds)
+
+    if not reached_cutoff and not exhausted:
+        raise RuntimeError(
+            f"抓取达到 {max_pages} 页仍未覆盖近 {window_hours} 小时，"
+            "为避免生成不完整的回填缓存，本次终止。"
+        )
 
     results.sort(key=lambda x: x.get("display_time", 0), reverse=True)
     return results
+
+
+def last_n_hours(
+    items: list[dict[str, Any]],
+    hours: int,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    cutoff = int((now - timedelta(hours=hours)).timestamp())
+    return [
+        item
+        for item in items
+        if int(item.get("display_time") or 0) >= cutoff
+    ]
 
 
 def load_history() -> list[dict[str, Any]]:
@@ -219,11 +258,40 @@ def merge_history(
     return items
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--backfill-days",
+        type=int,
+        default=0,
+        help=(
+            "One-time history backfill window. The public page still exposes "
+            "only the latest 24 hours in items; older fetched rows are stored "
+            "only in history_items."
+        ),
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = parse_args()
     now = datetime.now(CST)
 
+    backfill_days = max(0, int(args.backfill_days or 0))
+    fetch_hours = (
+        backfill_days * 24
+        if backfill_days
+        else FETCH_WINDOW_HOURS
+    )
+    max_pages = BACKFILL_MAX_PAGES if backfill_days else MAX_PAGES
+    page_delay = 0.10 if backfill_days else 0.0
+
     try:
-        fresh_items = collect_last_24h()
+        fetched_items = collect_window(
+            fetch_hours,
+            max_pages=max_pages,
+            page_delay_seconds=page_delay,
+        )
     except (
         urllib.error.URLError,
         urllib.error.HTTPError,
@@ -234,11 +302,20 @@ def main() -> int:
         print(f"抓取失败：{exc}", file=sys.stderr)
         return 1
 
+    fresh_items = last_n_hours(
+        fetched_items,
+        FETCH_WINDOW_HOURS,
+        now,
+    )
+
     if not fresh_items:
-        print("警告：近24小时返回 0 条数据，终止部署以保留上一次成功版本。", file=sys.stderr)
+        print(
+            "警告：近24小时返回 0 条数据，终止部署以保留上一次成功版本。",
+            file=sys.stderr,
+        )
         return 2
 
-    history_items = merge_history(load_history(), fresh_items)
+    history_items = merge_history(load_history(), fetched_items)
 
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     CACHE_FILE.write_text(
@@ -275,10 +352,17 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    print(
-        f"已写入 {OUTPUT}：近24小时 {len(fresh_items)} 条；"
-        f"近{RETENTION_DAYS}天缓存 {len(history_items)} 条"
-    )
+    if backfill_days:
+        print(
+            f"一次性回填完成：抓取窗口近{backfill_days}天，"
+            f"共抓到 {len(fetched_items)} 条；页面近24小时 {len(fresh_items)} 条；"
+            f"滚动{RETENTION_DAYS}天缓存 {len(history_items)} 条。"
+        )
+    else:
+        print(
+            f"已写入 {OUTPUT}：近24小时 {len(fresh_items)} 条；"
+            f"近{RETENTION_DAYS}天缓存 {len(history_items)} 条"
+        )
     return 0
 
 
