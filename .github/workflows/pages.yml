@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
   schedule:
     # GitHub Actions cron 使用 UTC。
-    # 北京时间每天 06:30、07:00、07:30 抓取一次当天全部新闻。
+    # 北京时间每天 06:30、07:00、07:30 抓取近24小时新闻。
     - cron: "30 22 * * *"
     - cron: "0,30 23 * * *"
 
-    # 北京时间每天 18:30、19:00、19:30 抓取一次当天全部新闻。
+    # 北京时间每天 18:30、19:00、19:30 抓取近24小时新闻。
     - cron: "30 10 * * *"
     - cron: "0,30 11 * * *"
 
@@ -47,7 +47,21 @@ jobs:
           restore-keys: |
             wscn-history-${{ runner.os }}-
 
+      # v5 首次部署时专用。固定 cache key 一旦命中，后续所有自动/手动运行
+      # 都恢复为正常的“只抓近24小时”。
+      - name: Restore v5 one-time backfill marker
+        id: v5-backfill-marker
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/v5_10day_backfill_done
+          key: wscn-v5-10day-backfill-done
+
+      - name: One-time backfill last 10 days
+        if: steps.v5-backfill-marker.outputs.cache-hit != 'true'
+        run: python scripts/fetch_wscn.py --backfill-days 10
+
       - name: Fetch last 24 hours of WSCN live news
+        if: steps.v5-backfill-marker.outputs.cache-hit == 'true'
         run: python scripts/fetch_wscn.py
 
       - name: Configure Pages
@@ -61,3 +75,18 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # 只有“10天回填 + Pages部署”都成功后才写入一次性标记。
+      # 如果首轮失败，下一次运行会再次尝试回填，而不会误判成已经完成。
+      - name: Mark v5 10-day backfill as completed
+        if: steps.v5-backfill-marker.outputs.cache-hit != 'true' && success()
+        run: |
+          mkdir -p cache
+          printf 'completed\n' > cache/v5_10day_backfill_done
+
+      - name: Save v5 one-time backfill marker
+        if: steps.v5-backfill-marker.outputs.cache-hit != 'true' && success()
+        uses: actions/cache/save@v4
+        with:
+          path: cache/v5_10day_backfill_done
+          key: wscn-v5-10day-backfill-done
