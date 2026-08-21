@@ -43,6 +43,7 @@ const els = {
   reviewLogoutButton: document.getElementById("reviewLogoutButton"),
   reportHint: document.getElementById("reportHint"),
   reviewTitle: document.getElementById("reviewTitle"),
+  reviewHelpText: document.getElementById("reviewHelpText"),
 };
 
 const CIRCLED = [
@@ -105,7 +106,22 @@ function updateReviewModeUI() {
     els.reviewTitle.textContent = isZhoubao ? "整理周报" : "整理早晚报";
   }
   document.title = isZhoubao ? "整理周报" : "整理早晚报";
-  if (isZhoubao) state.edition = "";
+
+  // 周报只保留“国内 / 国外”两栏，不提供任何分组入口。
+  els.newDomesticGroupButton.hidden = isZhoubao;
+  els.newForeignGroupButton.hidden = isZhoubao;
+  els.clearGroupsButton.hidden = isZhoubao;
+  els.resetGroupsButton.hidden = isZhoubao;
+  if (els.reviewHelpText) {
+    els.reviewHelpText.textContent = isZhoubao
+      ? "点击每条新闻左上角“...”进行上移、下移或切换国内外。手机端正文会自动缩略，点正文可展开。"
+      : "点击每条新闻或组左上角“...”进行上移、下移、分组或删除。手机端正文会自动缩略，点正文可展开。";
+  }
+
+  if (isZhoubao) {
+    state.edition = "";
+    closeGroupPicker();
+  }
 }
 
 function setCloudStatus({ text, kind, mode }) {
@@ -291,6 +307,16 @@ function boardHtml(category) {
 
 function render() {
   updateReviewModeUI();
+
+  // 兼容此前周报工作区里已经保存过的分组：进入周报后直接摊平，
+  // 仍分别留在国内 / 国外，不显示组标题，也不改变新闻顺序。
+  if (state.workspaceMode === "zhoubao") {
+    state.boards = {
+      domestic: flattenBoardNews(state.boards.domestic),
+      foreign: flattenBoardNews(state.boards.foreign),
+    };
+  }
+
   els.domesticBoard.innerHTML = boardHtml("domestic");
   els.foreignBoard.innerHTML = boardHtml("foreign");
 
@@ -551,12 +577,19 @@ function buildGlobalMenuExtra(
       ? "切到国外"
       : "切到国内";
 
-  const parts = [
-    '<button type="button" class="global-menu-extra-action" data-action="group">分组</button>',
-    `<button type="button" class="global-menu-extra-action" data-action="switch-category">${switchLabel}</button>`,
-  ];
+  const parts = [];
 
-  if (inGroup) {
+  if (state.workspaceMode !== "zhoubao") {
+    parts.push(
+      '<button type="button" class="global-menu-extra-action" data-action="group">分组</button>'
+    );
+  }
+
+  parts.push(
+    `<button type="button" class="global-menu-extra-action" data-action="switch-category">${switchLabel}</button>`
+  );
+
+  if (inGroup && state.workspaceMode !== "zhoubao") {
     parts.push(
       '<button type="button" class="global-menu-extra-action" data-action="ungroup">移出组</button>'
     );
@@ -1382,12 +1415,16 @@ window.addEventListener(
 
 els.newDomesticGroupButton.addEventListener(
   "click",
-  () => addGroup("domestic")
+  () => {
+    if (state.workspaceMode !== "zhoubao") addGroup("domestic");
+  }
 );
 
 els.newForeignGroupButton.addEventListener(
   "click",
-  () => addGroup("foreign")
+  () => {
+    if (state.workspaceMode !== "zhoubao") addGroup("foreign");
+  }
 );
 
 els.addManualDomesticButton.addEventListener(

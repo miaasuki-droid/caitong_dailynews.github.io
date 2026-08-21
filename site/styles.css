@@ -4094,3 +4094,27 @@ body {
   .news-time-date { font-size: 9px !important; }
   .news-time-weekday { font-size: 8.7px !important; }
 }
+
+
+/* ===== v5.3.4：周报无分组 + 财通移动端顶部留白 ===== */
+
+/* Zhoubao：只保留国内/国外，不显示任何分组控制。 */
+body[data-workspace-mode="zhoubao"] #newDomesticGroupButton,
+body[data-workspace-mode="zhoubao"] #newForeignGroupButton,
+body[data-workspace-mode="zhoubao"] #clearGroupsButton,
+body[data-workspace-mode="zhoubao"] #resetGroupsButton {
+  display: none !important;
+}
+
+/* 财通移动端：让“+国内组 / +国外组”下方与顶部“退出”上方留白更对称。 */
+@media (max-width: 780px) {
+  body[data-workspace-mode="caitong"] .review-header-actions {
+    padding-bottom: 10px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body[data-workspace-mode="caitong"] .review-header-actions {
+    padding-bottom: 10px !important;
+  }
+}
