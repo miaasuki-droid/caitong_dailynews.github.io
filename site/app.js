@@ -3,10 +3,16 @@ const state = {
   query: "",
   selections: {},
   edition: "",
+  filters: {
+    minLength: 10,
+    blockedTerms: "",
+  },
+  newsView: "filtered",
   reviewLayout: { domestic: [], foreign: [] },
   selectedNavUid: null,
   cloudVersion: 0,
   applyingRemote: false,
+  workspaceMode: "caitong",
 };
 
 const els = {
@@ -33,7 +39,16 @@ const els = {
   selectedNavPosition: document.getElementById("selectedNavPosition"),
   cloudStatus: document.getElementById("cloudStatus"),
   cloudReconnectButton: document.getElementById("cloudReconnectButton"),
+  workspaceModeLabel: document.getElementById("workspaceModeLabel"),
+  rawNewsTab: document.getElementById("rawNewsTab"),
+  filteredNewsTab: document.getElementById("filteredNewsTab"),
+  rawNewsCount: document.getElementById("rawNewsCount"),
+  filteredNewsCount: document.getElementById("filteredNewsCount"),
+  minLengthInput: document.getElementById("minLengthInput"),
+  blockedTermsInput: document.getElementById("blockedTermsInput"),
 };
+
+let filterSaveTimer = null;
 
 function escapeHtml(value = "") {
   return String(value)
@@ -72,7 +87,7 @@ function getBeijingHour() {
     hour: "2-digit",
     hourCycle: "h23",
   }).formatToParts(new Date());
-  return Number(parts.find((p) => p.type === "hour")?.value || 0);
+  return Number(parts.find((part) => part.type === "hour")?.value || 0);
 }
 
 function getDefaultEdition() {
@@ -101,23 +116,51 @@ function formatTimelineDate(iso) {
     year: "numeric",
     month: "numeric",
     day: "numeric",
-    weekday: "long",
   }).formatToParts(d);
   const map = Object.fromEntries(
     parts
       .filter((part) => part.type !== "literal")
       .map((part) => [part.type, part.value])
   );
-  return `${map.year}/${map.month}/${map.day} ${map.weekday}`;
+  return `${map.year}/${map.month}/${map.day}`;
+}
+
+function formatTimelineWeekday(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    weekday: "long",
+  }).format(d);
+}
+
+function normalizeFilters(filters) {
+  const minLength = Number(filters?.minLength);
+  return {
+    minLength:
+      Number.isFinite(minLength) && minLength >= 0
+        ? Math.min(10000, Math.floor(minLength))
+        : 10,
+    blockedTerms: String(filters?.blockedTerms || ""),
+  };
 }
 
 function workspaceSnapshot() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     selections: state.selections,
     edition: state.edition || getDefaultEdition(),
+    filters: state.filters,
     reviewLayout: state.reviewLayout,
   };
+}
+
+function updateWorkspaceModeUI(mode = window.WSCNCloud.getMode()) {
+  state.workspaceMode = mode === "zhoubao" ? "zhoubao" : "caitong";
+  els.workspaceModeLabel.textContent =
+    state.workspaceMode === "zhoubao" ? "周报模式" : "财通模式";
+  document.body.dataset.workspaceMode = state.workspaceMode;
 }
 
 function applyWorkspace(workspace, { renderNow = true } = {}) {
@@ -128,7 +171,7 @@ function applyWorkspace(workspace, { renderNow = true } = {}) {
     normalized.edition === "morning" || normalized.edition === "evening"
       ? normalized.edition
       : getDefaultEdition();
-
+  state.filters = normalizeFilters(normalized.filters);
   state.reviewLayout =
     normalized.reviewLayout &&
     Array.isArray(normalized.reviewLayout.domestic) &&
@@ -136,7 +179,9 @@ function applyWorkspace(workspace, { renderNow = true } = {}) {
       ? normalized.reviewLayout
       : { domestic: [], foreign: [] };
 
+  updateWorkspaceModeUI();
   pruneSelectionsToHistory();
+  syncFilterInputs();
 
   if (renderNow) render();
 }
@@ -145,11 +190,13 @@ async function persistWorkspace() {
   if (state.applyingRemote) return;
   const saved = await window.WSCNCloud.saveWorkspace(workspaceSnapshot());
   state.cloudVersion = saved.version || state.cloudVersion;
+  updateWorkspaceModeUI(saved.mode || window.WSCNCloud.getMode());
 }
 
-function setCloudStatus({ text, kind }) {
+function setCloudStatus({ text, kind, mode }) {
   els.cloudStatus.textContent = text;
   els.cloudStatus.dataset.kind = kind || "neutral";
+  updateWorkspaceModeUI(mode || window.WSCNCloud.getMode());
 }
 
 function allHistoryItems() {
@@ -165,10 +212,12 @@ function currentBrowseItems() {
 
   const map = new Map();
 
+  // Main news rail remains the latest 24-hour source list.
   for (const item of state.data.items || []) {
     map.set(String(item.id), item);
   }
 
+  // Previously selected items remain reachable while they are in the 10-day cache.
   for (const item of allHistoryItems()) {
     const id = String(item.id);
     if (state.selections[id] && !map.has(id)) {
@@ -200,9 +249,7 @@ function pruneSelectionsToHistory() {
 }
 
 function isManualItem(item) {
-  return Boolean(
-    item?.manual || String(item?.uid || "").startsWith("manual-")
-  );
+  return Boolean(item?.manual || String(item?.uid || "").startsWith("manual-"));
 }
 
 function countManualItems(layout = state.reviewLayout) {
@@ -245,18 +292,77 @@ function clearManualItemsFromLayout() {
   state.reviewLayout = next;
 }
 
+function itemFilterText(item) {
+  return [item.content, item.title, item.article?.title]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function itemCharacterCount(item) {
+  return Array.from(itemFilterText(item).replace(/\s+/g, "")).length;
+}
+
+function blockedTerms() {
+  return state.filters.blockedTerms
+    .split(/\r?\n/)
+    .map((term) => term.trim())
+    .filter(Boolean);
+}
+
+function passesUserFilters(item) {
+  if (itemCharacterCount(item) < state.filters.minLength) return false;
+
+  const haystack = itemFilterText(item).toLocaleLowerCase("zh-CN");
+  return !blockedTerms().some((term) =>
+    haystack.includes(term.toLocaleLowerCase("zh-CN"))
+  );
+}
+
+function filteredBrowseItems() {
+  return currentBrowseItems().filter(passesUserFilters);
+}
+
 function getVisibleItems() {
-  const q = state.query.trim().toLowerCase();
+  const base =
+    state.newsView === "raw" ? currentBrowseItems() : filteredBrowseItems();
+  const q = state.query.trim().toLocaleLowerCase("zh-CN");
 
-  return currentBrowseItems().filter((item) => {
-    if (!q) return true;
+  if (!q) return base;
 
-    return [item.content, item.title, item.article?.title]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(q);
-  });
+  return base.filter((item) =>
+    itemFilterText(item).toLocaleLowerCase("zh-CN").includes(q)
+  );
+}
+
+function syncFilterInputs() {
+  if (document.activeElement !== els.minLengthInput) {
+    els.minLengthInput.value = String(state.filters.minLength);
+  }
+  if (document.activeElement !== els.blockedTermsInput) {
+    els.blockedTermsInput.value = state.filters.blockedTerms;
+  }
+}
+
+function renderNewsTabs() {
+  const rawCount = currentBrowseItems().length;
+  const filteredCount = filteredBrowseItems().length;
+
+  els.rawNewsCount.textContent = String(rawCount);
+  els.filteredNewsCount.textContent = String(filteredCount);
+
+  for (const button of [els.rawNewsTab, els.filteredNewsTab]) {
+    const active = button.dataset.view === state.newsView;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  }
+}
+
+function scheduleFilterSave() {
+  clearTimeout(filterSaveTimer);
+  filterSaveTimer = setTimeout(() => {
+    persistWorkspace().catch(console.error);
+  }, 650);
 }
 
 function selectionFor(item) {
@@ -285,12 +391,21 @@ function itemHtml(item) {
       data-news-id="${escapeHtml(String(item.id))}"
     >
       <time class="news-time">
-        <span class="news-time-main">${escapeHtml(formatTimelineTime(item.datetime, item.time || ""))}</span>
-        <span class="news-time-date">${escapeHtml(formatTimelineDate(item.datetime))}</span>
+        <span class="news-time-main">${escapeHtml(
+          formatTimelineTime(item.datetime, item.time || "")
+        )}</span>
+        <span class="news-time-date">${escapeHtml(
+          formatTimelineDate(item.datetime)
+        )}</span>
+        <span class="news-time-weekday">${escapeHtml(
+          formatTimelineWeekday(item.datetime)
+        )}</span>
       </time>
       <div class="rail"><span class="dot" aria-hidden="true"></span></div>
       <div class="news-card">
-        <p class="news-content">${escapeHtml(item.content || item.title || "（无正文）")}</p>
+        <p class="news-content">${escapeHtml(
+          item.content || item.title || "（无正文）"
+        )}</p>
         <div class="news-card-bottom">
           <div class="news-footer">
             ${badge}
@@ -321,8 +436,8 @@ function selectionCounts() {
 
   return {
     total: values.length,
-    domestic: values.filter((x) => x === "domestic").length,
-    foreign: values.filter((x) => x === "foreign").length,
+    domestic: values.filter((value) => value === "domestic").length,
+    foreign: values.filter((value) => value === "foreign").length,
   };
 }
 
@@ -346,9 +461,7 @@ function renderSelectionStatus() {
       ? `已选 ${counts.total} 条 · 国内 ${counts.domestic} / 国外 ${counts.foreign} · 自选 ${manualCount} · 提交`
       : "已选 0 条 · 提交";
 
-  els.generateReportButton.disabled =
-    counts.total === 0 && manualCount === 0;
-
+  els.generateReportButton.disabled = counts.total === 0 && manualCount === 0;
   els.clearSelectionButton.disabled = counts.total === 0;
   els.clearManualButton.disabled = manualCount === 0;
 
@@ -411,13 +524,13 @@ function currentSelectedAnchorIndex(selectedItems, direction) {
   }
 
   if (direction > 0) {
-    const next = candidates.find((x) => x.center > viewportAnchor);
+    const next = candidates.find((candidate) => candidate.center > viewportAnchor);
     return next ? next.i - 1 : selectedItems.length - 1;
   }
 
   const previous = [...candidates]
     .reverse()
-    .find((x) => x.center < viewportAnchor);
+    .find((candidate) => candidate.center < viewportAnchor);
 
   return previous ? previous.i + 1 : 0;
 }
@@ -449,10 +562,7 @@ function navigateSelected(direction) {
 
     element.classList.add("selected-nav-highlight");
 
-    setTimeout(
-      () => element.classList.remove("selected-nav-highlight"),
-      1600
-    );
+    setTimeout(() => element.classList.remove("selected-nav-highlight"), 1600);
   };
 
   const current = document.querySelector(
@@ -460,6 +570,8 @@ function navigateSelected(direction) {
   );
 
   if (!current) {
+    // A selected item may have been filtered out. Navigation always makes it reachable.
+    state.newsView = "raw";
     state.query = "";
     els.searchInput.value = "";
     render();
@@ -480,11 +592,13 @@ function render() {
   els.timeline.innerHTML = visible.map(itemHtml).join("");
   els.emptyState.hidden = visible.length !== 0;
   els.errorState.hidden = true;
-  els.statusText.textContent =
-    state.data.generated_at ? "已同步" : "已读取";
+  els.statusText.textContent = state.data.generated_at ? "已同步" : "已读取";
 
+  syncFilterInputs();
+  renderNewsTabs();
   renderSelectionStatus();
   updateSelectedNavigator();
+  updateWorkspaceModeUI();
 }
 
 async function loadNewsData() {
@@ -495,9 +609,7 @@ async function loadNewsData() {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const data = await res.json();
-
   if (data.error) throw new Error(data.error);
-
   state.data = data;
 }
 
@@ -507,16 +619,16 @@ async function initialLoad() {
 
     await loadNewsData();
 
-    // 先显示新闻和本机已有进度，不等待云端。
+    // Render immediately from local state. Cloud never blocks the news list.
     const localWorkspace = window.WSCNCloud.migrateLegacyLocalIfNeeded();
     applyWorkspace(localWorkspace, { renderNow: true });
 
-    // 再后台连接云端。连接失败/超时也不会阻塞新闻页面。
     const workspace = await window.WSCNCloud.loadWorkspace({
       allowPrompt: true,
     });
 
     state.cloudVersion = workspace.version || 0;
+    updateWorkspaceModeUI(workspace.mode || window.WSCNCloud.getMode());
     applyWorkspace(workspace.state, { renderNow: true });
   } catch (error) {
     console.error(error);
@@ -536,19 +648,46 @@ async function pollCloud() {
   if (!remote) return;
 
   const version = Number(remote.version || 0);
+  const modeChanged = remote.mode && remote.mode !== state.workspaceMode;
 
-  if (version > Number(state.cloudVersion || 0)) {
+  if (version > Number(state.cloudVersion || 0) || modeChanged) {
     state.applyingRemote = true;
     state.cloudVersion = version;
+    updateWorkspaceModeUI(remote.mode || window.WSCNCloud.getMode());
     applyWorkspace(remote.state, { renderNow: true });
     state.applyingRemote = false;
-    setCloudStatus({ text: "已收到其他设备更新", kind: "success" });
+    setCloudStatus({
+      text: `${window.WSCNCloud.modeLabel()}工作区已同步`,
+      kind: "success",
+      mode: remote.mode,
+    });
   }
 }
 
 els.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   render();
+});
+
+for (const tab of [els.rawNewsTab, els.filteredNewsTab]) {
+  tab.addEventListener("click", () => {
+    state.newsView = tab.dataset.view === "raw" ? "raw" : "filtered";
+    render();
+  });
+}
+
+els.minLengthInput.addEventListener("input", () => {
+  const value = Number(els.minLengthInput.value);
+  state.filters.minLength =
+    Number.isFinite(value) && value >= 0 ? Math.min(10000, Math.floor(value)) : 10;
+  render();
+  scheduleFilterSave();
+});
+
+els.blockedTermsInput.addEventListener("input", () => {
+  state.filters.blockedTerms = els.blockedTermsInput.value;
+  render();
+  scheduleFilterSave();
 });
 
 els.timeline.addEventListener("click", async (event) => {
@@ -569,13 +708,8 @@ els.timeline.addEventListener("click", async (event) => {
 });
 
 els.selectionDrawerToggle.addEventListener("click", () => {
-  const isCollapsed =
-    els.selectionWorkbench.classList.toggle("collapsed");
-
-  els.selectionDrawerToggle.setAttribute(
-    "aria-expanded",
-    String(!isCollapsed)
-  );
+  const isCollapsed = els.selectionWorkbench.classList.toggle("collapsed");
+  els.selectionDrawerToggle.setAttribute("aria-expanded", String(!isCollapsed));
 });
 
 [els.morningButton, els.eveningButton].forEach((button) => {
@@ -603,19 +737,13 @@ els.generateReportButton.addEventListener("click", async () => {
   window.location.href = "./review.html";
 });
 
-els.previousSelectedButton.addEventListener(
-  "click",
-  () => navigateSelected(-1)
-);
-
-els.nextSelectedButton.addEventListener(
-  "click",
-  () => navigateSelected(1)
-);
+els.previousSelectedButton.addEventListener("click", () => navigateSelected(-1));
+els.nextSelectedButton.addEventListener("click", () => navigateSelected(1));
 
 els.cloudReconnectButton.addEventListener("click", async () => {
   const result = await window.WSCNCloud.reconnect();
   state.cloudVersion = result.version || 0;
+  updateWorkspaceModeUI(result.mode || window.WSCNCloud.getMode());
   applyWorkspace(result.state, { renderNow: true });
 });
 
@@ -627,7 +755,4 @@ setInterval(() => {
     .catch(() => {});
 }, 60_000);
 
-setInterval(
-  pollCloud,
-  window.WSCNCloud.getPollIntervalMs()
-);
+setInterval(pollCloud, window.WSCNCloud.getPollIntervalMs());

@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light" />
   <title>今日全球快讯</title>
   <meta name="description" content="财通固收早晚报快讯筛选工具" />
-  <link rel="stylesheet" href="./styles.css?v=413" />
+  <link rel="stylesheet" href="./styles.css?v=500" />
 </head>
 <body>
   <header class="topbar">
@@ -16,7 +16,10 @@
         <h1>今日全球快讯</h1>
         <p class="subtitle">自动整理 <a href="https://wallstreetcn.com/live/global" target="_blank" rel="noreferrer">华尔街见闻 · 全球快讯</a></p>
       </div>
-      <div class="status-wrap"><span class="status-dot" aria-hidden="true"></span><span id="statusText">读取数据中</span></div>
+      <div class="status-wrap">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="statusText">读取数据中</span>
+      </div>
     </div>
   </header>
 
@@ -37,9 +40,39 @@
       <div class="cloud-box">
         <span class="label">共享工作区</span>
         <div class="cloud-row">
-          <span id="cloudStatus" class="cloud-status">正在连接…</span>
-          <button id="cloudReconnectButton" class="cloud-reconnect-button" type="button">重连</button>
+          <div class="cloud-status-stack">
+            <strong id="workspaceModeLabel" class="workspace-mode-label">财通模式</strong>
+            <span id="cloudStatus" class="cloud-status">正在连接…</span>
+          </div>
+          <button id="cloudReconnectButton" class="cloud-reconnect-button" type="button">切换入口</button>
         </div>
+      </div>
+    </section>
+
+    <section class="filter-shell" aria-label="新闻筛选">
+      <div class="news-view-tabs" role="tablist" aria-label="新闻栏">
+        <button id="rawNewsTab" class="news-view-tab" type="button" data-view="raw" role="tab" aria-selected="false">
+          原始新闻 <span id="rawNewsCount" class="tab-count">0</span>
+        </button>
+        <button id="filteredNewsTab" class="news-view-tab active" type="button" data-view="filtered" role="tab" aria-selected="true">
+          筛选后新闻 <span id="filteredNewsCount" class="tab-count">0</span>
+        </button>
+      </div>
+
+      <div class="filter-controls">
+        <label class="threshold-control" for="minLengthInput">
+          <span class="filter-label">最小字数</span>
+          <div class="threshold-input-wrap">
+            <input id="minLengthInput" type="number" inputmode="numeric" min="0" max="10000" step="1" value="10" />
+            <span>字</span>
+          </div>
+          <small>少于该字数的新闻不显示</small>
+        </label>
+
+        <label class="blocked-terms-control" for="blockedTermsInput">
+          <span class="filter-label">筛选词</span>
+          <textarea id="blockedTermsInput" rows="3" placeholder="一个词一行；包含任一词的新闻不进入“筛选后新闻”"></textarea>
+        </label>
       </div>
     </section>
 
@@ -74,7 +107,7 @@
 
     <section id="emptyState" class="empty-state" hidden>
       <h2>没有匹配内容</h2>
-      <p>换一个关键词。</p>
+      <p>调整搜索词、最小字数或筛选词。</p>
     </section>
 
     <section id="errorState" class="error-state" hidden>
@@ -85,20 +118,20 @@
 
   <footer><p>本页仅做个人信息整理。内容版权归原始来源所有；点击单条快讯可回到原页面。</p></footer>
 
-    <div id="selectedNavigator" class="selected-navigator" hidden aria-label="已选新闻导航">
-      <button id="previousSelectedButton" class="selected-nav-button" type="button" title="上一条已选新闻">
-        <span class="selected-nav-arrow">↑</span>
-        <span class="selected-nav-label">上一个已选</span>
-      </button>
-      <div id="selectedNavPosition" class="selected-nav-position">0 / 0</div>
-      <button id="nextSelectedButton" class="selected-nav-button" type="button" title="下一条已选新闻">
-        <span class="selected-nav-arrow">↓</span>
-        <span class="selected-nav-label">下一个已选</span>
-      </button>
-    </div>
+  <div id="selectedNavigator" class="selected-navigator" hidden aria-label="已选新闻导航">
+    <button id="previousSelectedButton" class="selected-nav-button" type="button" title="上一条已选新闻">
+      <span class="selected-nav-arrow">↑</span>
+      <span class="selected-nav-label">上一个已选</span>
+    </button>
+    <div id="selectedNavPosition" class="selected-nav-position">0 / 0</div>
+    <button id="nextSelectedButton" class="selected-nav-button" type="button" title="下一条已选新闻">
+      <span class="selected-nav-arrow">↓</span>
+      <span class="selected-nav-label">下一个已选</span>
+    </button>
+  </div>
 
-  <script src="./cloud-config.js?v=413"></script>
-  <script src="./cloud.js?v=413"></script>
-  <script src="./app.js?v=413"></script>
+  <script src="./cloud-config.js?v=500"></script>
+  <script src="./cloud.js?v=500"></script>
+  <script src="./app.js?v=500"></script>
 </body>
 </html>

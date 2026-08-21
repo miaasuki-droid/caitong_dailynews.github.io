@@ -1,10 +1,13 @@
 (() => {
   const CONFIG = window.WSCN_CLOUD_CONFIG || {};
-  const PASSWORD_KEY = "wscn-cloud-workspace-password-v1";
-  const LOCAL_STATE_KEY = "wscn-shared-workspace-v1";
+  const PASSWORD_KEY = "wscn-cloud-workspace-password-v2";
+  const MODE_KEY = "wscn-cloud-workspace-mode-v2";
+  const LEGACY_LOCAL_STATE_KEY = "wscn-shared-workspace-v1";
+  const LOCAL_STATE_PREFIX = "wscn-shared-workspace-v2:";
 
   let remoteVersion = 0;
   let lastRemoteUpdatedAt = "";
+  let currentMode = localStorage.getItem(MODE_KEY) || "caitong";
   let statusListener = null;
 
   function configured() {
@@ -29,7 +32,6 @@
       apikey: key,
     };
 
-    // legacy anon keys are JWTs; publishable sb_publishable_* keys are not.
     if (key.startsWith("eyJ")) {
       result.Authorization = `Bearer ${key}`;
     }
@@ -39,7 +41,7 @@
 
   function emitStatus(text, kind = "neutral") {
     if (typeof statusListener === "function") {
-      statusListener({ text, kind });
+      statusListener({ text, kind, mode: currentMode });
     }
   }
 
@@ -56,6 +58,23 @@
     else localStorage.removeItem(PASSWORD_KEY);
   }
 
+  function getMode() {
+    return currentMode || "caitong";
+  }
+
+  function setMode(mode) {
+    currentMode = mode === "zhoubao" ? "zhoubao" : "caitong";
+    localStorage.setItem(MODE_KEY, currentMode);
+  }
+
+  function modeLabel(mode = getMode()) {
+    return mode === "zhoubao" ? "周报" : "财通";
+  }
+
+  function localStateKey(mode = getMode()) {
+    return `${LOCAL_STATE_PREFIX}${mode === "zhoubao" ? "zhoubao" : "caitong"}`;
+  }
+
   function promptPassword(force = false) {
     if (!force) {
       const cached = getPassword();
@@ -63,7 +82,7 @@
     }
 
     const value = window.prompt(
-      "输入共享工作区密码。\n所有手机和电脑使用同一个密码即可共享进度：",
+      "输入接入口令。\n输入 caitong 进入财通模式；输入 zhoubao 进入周报模式：",
       ""
     );
 
@@ -113,9 +132,13 @@
 
   function defaultState() {
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       selections: {},
       edition: "",
+      filters: {
+        minLength: 10,
+        blockedTerms: "",
+      },
       reviewLayout: {
         domestic: [],
         foreign: [],
@@ -137,6 +160,13 @@
         ? input.edition
         : "";
 
+    const minLength = Number(input.filters?.minLength);
+    base.filters.minLength =
+      Number.isFinite(minLength) && minLength >= 0
+        ? Math.min(10000, Math.floor(minLength))
+        : 10;
+    base.filters.blockedTerms = String(input.filters?.blockedTerms || "");
+
     if (
       input.reviewLayout &&
       Array.isArray(input.reviewLayout.domestic) &&
@@ -148,18 +178,20 @@
     return base;
   }
 
-  function loadLocal() {
+  function loadLocal(mode = getMode()) {
     try {
-      const parsed = JSON.parse(localStorage.getItem(LOCAL_STATE_KEY) || "null");
+      const parsed = JSON.parse(
+        localStorage.getItem(localStateKey(mode)) || "null"
+      );
       return normalizeState(parsed);
     } catch (_) {
       return defaultState();
     }
   }
 
-  function saveLocal(state) {
+  function saveLocal(state, mode = getMode()) {
     const normalized = normalizeState(state);
-    localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(normalized));
+    localStorage.setItem(localStateKey(mode), JSON.stringify(normalized));
     return normalized;
   }
 
@@ -178,13 +210,28 @@
     return dates.at(-1) || "";
   }
 
-  function migrateLegacyLocalIfNeeded() {
-    const existing = localStorage.getItem(LOCAL_STATE_KEY);
-    if (existing) return loadLocal();
+  function migrateLegacyLocalIfNeeded(mode = getMode()) {
+    if (localStorage.getItem(localStateKey(mode))) {
+      return loadLocal(mode);
+    }
+
+    if (mode === "zhoubao") {
+      return saveLocal(defaultState(), mode);
+    }
 
     const migrated = defaultState();
 
-    // v3.x: date-based keys
+    // v4.1 single shared workspace -> caitong workspace.
+    try {
+      const oldShared = JSON.parse(
+        localStorage.getItem(LEGACY_LOCAL_STATE_KEY) || "null"
+      );
+      if (oldShared) {
+        return saveLocal(normalizeState(oldShared), "caitong");
+      }
+    } catch (_) {}
+
+    // v3.x date-based local state.
     const legacyDate = findLatestLegacyDate("wscn-report-selections:");
 
     if (legacyDate) {
@@ -205,7 +252,6 @@
         const layout = JSON.parse(
           localStorage.getItem(`wscn-review-layout:${legacyDate}`) || "null"
         );
-
         if (
           layout &&
           Array.isArray(layout.domestic) &&
@@ -216,7 +262,7 @@
       } catch (_) {}
     }
 
-    // v4.0 default local account, in case it was ever partially tested.
+    // v4.0 temporary local account structure.
     if (!legacyDate) {
       try {
         const selections = JSON.parse(
@@ -239,7 +285,6 @@
             "wscn-account:%E9%BB%98%E8%AE%A4:review-layout"
           ) || "null"
         );
-
         if (
           layout &&
           Array.isArray(layout.domestic) &&
@@ -250,7 +295,7 @@
       } catch (_) {}
     }
 
-    return saveLocal(migrated);
+    return saveLocal(migrated, "caitong");
   }
 
   function isMeaningfullyEmpty(state) {
@@ -277,6 +322,8 @@
       throw new Error(payload?.error || "cloud_load_failed");
     }
 
+    const mode = payload.mode === "zhoubao" ? "zhoubao" : "caitong";
+    setMode(mode);
     remoteVersion = Number(payload.version || 0);
     lastRemoteUpdatedAt = payload.updated_at || "";
 
@@ -284,19 +331,22 @@
       state: normalizeState(payload.state),
       version: remoteVersion,
       updatedAt: lastRemoteUpdatedAt,
+      mode,
     };
   }
 
   async function loadWorkspace({ allowPrompt = true } = {}) {
-    const local = migrateLegacyLocalIfNeeded();
+    const preMode = getMode();
+    const preLocal = migrateLegacyLocalIfNeeded(preMode);
 
     if (!configured()) {
       emitStatus("云端未配置 · 当前使用本机", "warning");
       return {
         cloud: false,
-        state: local,
+        state: preLocal,
         version: 0,
         updatedAt: "",
+        mode: preMode,
       };
     }
 
@@ -310,9 +360,10 @@
       emitStatus("未连接云端 · 当前使用本机", "warning");
       return {
         cloud: false,
-        state: local,
+        state: preLocal,
         version: 0,
         updatedAt: "",
+        mode: preMode,
       };
     }
 
@@ -320,41 +371,45 @@
       emitStatus("正在读取云端…", "loading");
 
       const remote = await loadRemoteWithPassword(password);
+      const local = migrateLegacyLocalIfNeeded(remote.mode);
 
-      // 第一次启用云端时，如果云端还是空白、旧浏览器已有进度，
-      // 自动把旧进度上传，避免升级时丢失。
-      if (isMeaningfullyEmpty(remote.state) && !isMeaningfullyEmpty(local)) {
+      // Only migrate an existing local caitong workspace into an empty caitong cloud.
+      if (
+        remote.mode === "caitong" &&
+        isMeaningfullyEmpty(remote.state) &&
+        !isMeaningfullyEmpty(local)
+      ) {
         const saved = await saveWorkspace(local, {
           password,
-          skipLocal: false,
+          mode: remote.mode,
         });
-        emitStatus("旧进度已迁移到云端", "success");
+        emitStatus(`${modeLabel(remote.mode)}工作区已同步`, "success");
         return saved;
       }
 
-      saveLocal(remote.state);
-      emitStatus("云端已同步", "success");
+      saveLocal(remote.state, remote.mode);
+      emitStatus(`${modeLabel(remote.mode)}工作区已同步`, "success");
 
       return {
         cloud: true,
         state: remote.state,
         version: remote.version,
         updatedAt: remote.updatedAt,
+        mode: remote.mode,
       };
     } catch (error) {
       if (error?.code === "invalid_password") {
         setPassword("");
 
         if (allowPrompt) {
-          window.alert("工作区密码不正确，请重新输入。");
+          window.alert("接入口令不正确，请重新输入。");
           const retryPassword = promptPassword(true);
-
           if (retryPassword) {
             return loadWorkspace({ allowPrompt: false });
           }
         }
 
-        emitStatus("云端密码错误 · 当前使用本机", "error");
+        emitStatus("云端口令错误 · 当前使用本机", "error");
       } else if (error?.code === "cloud_timeout") {
         console.error(error);
         emitStatus("云端连接超时 · 当前使用本机", "error");
@@ -365,15 +420,17 @@
 
       return {
         cloud: false,
-        state: local,
+        state: preLocal,
         version: 0,
         updatedAt: "",
+        mode: preMode,
       };
     }
   }
 
   async function saveWorkspace(state, options = {}) {
-    const normalized = saveLocal(state);
+    const mode = options.mode || getMode();
+    const normalized = saveLocal(state, mode);
 
     if (!configured()) {
       emitStatus("已保存本机 · 云端未配置", "warning");
@@ -382,6 +439,7 @@
         state: normalized,
         version: remoteVersion,
         updatedAt: lastRemoteUpdatedAt,
+        mode,
       };
     }
 
@@ -394,6 +452,7 @@
         state: normalized,
         version: remoteVersion,
         updatedAt: lastRemoteUpdatedAt,
+        mode,
       };
     }
 
@@ -415,22 +474,28 @@
         throw new Error(payload?.error || "cloud_save_failed");
       }
 
+      const returnedMode =
+        payload.mode === "zhoubao" ? "zhoubao" : mode;
+      setMode(returnedMode);
       remoteVersion = Number(payload.version || remoteVersion + 1);
       lastRemoteUpdatedAt = payload.updated_at || "";
 
-      emitStatus("云端已同步", "success");
+      const returnedState = normalizeState(payload.state || normalized);
+      saveLocal(returnedState, returnedMode);
+      emitStatus(`${modeLabel(returnedMode)}工作区已同步`, "success");
 
       return {
         cloud: true,
-        state: normalizeState(payload.state || normalized),
+        state: returnedState,
         version: remoteVersion,
         updatedAt: lastRemoteUpdatedAt,
+        mode: returnedMode,
       };
     } catch (error) {
       console.error(error);
 
       if (error?.code === "invalid_password") {
-        emitStatus("密码失效 · 已保存本机", "error");
+        emitStatus("口令失效 · 已保存本机", "error");
       } else if (error?.code === "cloud_timeout") {
         emitStatus("云端保存超时 · 已保存本机", "error");
       } else {
@@ -442,6 +507,7 @@
         state: normalized,
         version: remoteVersion,
         updatedAt: lastRemoteUpdatedAt,
+        mode,
       };
     }
   }
@@ -453,8 +519,7 @@
     if (!password) return null;
 
     try {
-      const remote = await loadRemoteWithPassword(password);
-      return remote;
+      return await loadRemoteWithPassword(password);
     } catch (error) {
       console.error(error);
       return null;
@@ -484,6 +549,8 @@
     reconnect,
     getPassword,
     setPassword,
+    getMode,
+    modeLabel,
     setStatusListener,
     getPollIntervalMs,
     getVersion: () => remoteVersion,

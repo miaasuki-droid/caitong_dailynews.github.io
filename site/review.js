@@ -3,6 +3,8 @@ const state = {
   date: "",
   edition: "morning",
   selections: {},
+  filters: { minLength: 10, blockedTerms: "" },
+  workspaceMode: "caitong",
   boards: { domestic: [], foreign: [] },
   groupResetBaseline: null,
   expandedItems: new Set(),
@@ -38,6 +40,7 @@ const els = {
   globalNodeMenu: document.getElementById("globalNodeMenu"),
   globalNodeMenuExtra: document.getElementById("globalNodeMenuExtra"),
   reviewCloudStatus: document.getElementById("reviewCloudStatus"),
+  reportHint: document.getElementById("reportHint"),
 };
 
 const CIRCLED = [
@@ -85,16 +88,21 @@ function sourceItems() {
 
 function workspaceSnapshot() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     selections: state.selections,
     edition: state.edition,
+    filters: state.filters,
     reviewLayout: state.boards,
   };
 }
 
-function setCloudStatus({ text, kind }) {
-  els.reviewCloudStatus.textContent = text;
+function setCloudStatus({ text, kind, mode }) {
+  state.workspaceMode =
+    (mode || window.WSCNCloud.getMode()) === "zhoubao" ? "zhoubao" : "caitong";
+  els.reviewCloudStatus.textContent =
+    `${state.workspaceMode === "zhoubao" ? "周报" : "财通"} · ${text}`;
   els.reviewCloudStatus.dataset.kind = kind || "neutral";
+  document.body.dataset.workspaceMode = state.workspaceMode;
 }
 
 async function persistWorkspace() {
@@ -279,9 +287,18 @@ function render() {
   els.foreignCount.textContent = `${foreignCount} 条`;
 
   els.reviewCount.textContent =
-    `共 ${domesticCount + foreignCount} 条 · ${
-      state.edition === "evening" ? "晚报" : "早报"
-    }`;
+    state.workspaceMode === "zhoubao"
+      ? `共 ${domesticCount + foreignCount} 条 · 周报模式`
+      : `共 ${domesticCount + foreignCount} 条 · ${
+          state.edition === "evening" ? "晚报" : "早报"
+        }`;
+
+  if (els.reportHint) {
+    els.reportHint.textContent =
+      state.workspaceMode === "zhoubao"
+        ? "周报模式：不编号；每条按“新闻标题 → 换行 → 几月几日，具体新闻”输出。"
+        : "同一条新闻内部不留空行；不同新闻之间保留一个空行。组标题使用（数字），组内新闻使用①②③重新编号。";
+  }
 }
 
 function locateNode(uid) {
@@ -766,7 +783,7 @@ function blockForNode(node, numberRef) {
   return `${header}\n${children.join("\n\n")}`;
 }
 
-function buildReport() {
+function buildCaitongReport() {
   const [, month, day] =
     state.date.split("-").map(Number);
 
@@ -819,6 +836,87 @@ function buildReport() {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+
+function zhoubaoTitleAndBody(item) {
+  const raw = normalizeNewsText(item.content || "");
+  let title = normalizeNewsText(item.title || "");
+  let body = raw;
+
+  const bracket = raw.match(/^【([^】]+)】\s*(.*)$/);
+  if (!title && bracket) {
+    title = bracket[1].trim();
+    body = bracket[2].trim();
+  } else if (title && bracket && bracket[1].trim() === title) {
+    body = bracket[2].trim();
+  }
+
+  if (!title) {
+    const sentence = raw.split(/[。！？!?；;]/)[0].trim();
+    title = sentence.slice(0, 36) || "新闻";
+    if (body === raw && raw.startsWith(sentence) && raw.length > sentence.length) {
+      body = raw.slice(sentence.length).replace(/^[。！？!?；;，,\s]+/, "").trim();
+    }
+  }
+
+  return {
+    title: title || "新闻",
+    body: body || raw || "",
+  };
+}
+
+function zhoubaoMonthDay(item) {
+  let date;
+  if (Number(item.display_time || 0) > 0) {
+    date = new Date(Number(item.display_time) * 1000);
+  } else {
+    date = new Date();
+  }
+
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(date);
+  const map = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return `${map.month}月${map.day}日`;
+}
+
+function flattenBoardNews(board) {
+  const items = [];
+  for (const node of board) {
+    if (node.type === "group") items.push(...(node.items || []));
+    else items.push(node);
+  }
+  return items;
+}
+
+function zhoubaoItemBlock(item) {
+  const { title, body } = zhoubaoTitleAndBody(item);
+  return `${title}\n${zhoubaoMonthDay(item)}，${body}`;
+}
+
+function buildZhoubaoReport() {
+  const domestic = flattenBoardNews(state.boards.domestic).map(zhoubaoItemBlock);
+  const foreign = flattenBoardNews(state.boards.foreign).map(zhoubaoItemBlock);
+  const parts = ["国内新闻："];
+
+  if (domestic.length) parts.push("", domestic.join("\n\n"));
+  parts.push("", "国外新闻：");
+  if (foreign.length) parts.push("", foreign.join("\n\n"));
+
+  return parts.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function buildReport() {
+  return state.workspaceMode === "zhoubao"
+    ? buildZhoubaoReport()
+    : buildCaitongReport();
 }
 
 async function copyText(text) {
@@ -955,6 +1053,13 @@ async function initialLoad() {
     state.selections =
       normalized.selections || {};
 
+    state.filters = normalized.filters || { minLength: 10, blockedTerms: "" };
+    state.workspaceMode =
+      window.WSCNCloud.getMode() === "zhoubao"
+        ? "zhoubao"
+        : "caitong";
+    document.body.dataset.workspaceMode = state.workspaceMode;
+
     state.edition =
       normalized.edition === "morning" ||
       normalized.edition === "evening"
@@ -988,6 +1093,12 @@ async function initialLoad() {
 
     state.selections =
       normalized.selections || {};
+    state.filters = normalized.filters || state.filters;
+    state.workspaceMode =
+      (workspace.mode || window.WSCNCloud.getMode()) === "zhoubao"
+        ? "zhoubao"
+        : "caitong";
+    document.body.dataset.workspaceMode = state.workspaceMode;
 
     state.edition =
       normalized.edition === "morning" ||
@@ -1052,6 +1163,12 @@ async function pollCloud() {
 
   state.selections =
     normalized.selections || {};
+  state.filters = normalized.filters || state.filters;
+  state.workspaceMode =
+    (remote.mode || window.WSCNCloud.getMode()) === "zhoubao"
+      ? "zhoubao"
+      : "caitong";
+  document.body.dataset.workspaceMode = state.workspaceMode;
 
   state.edition =
     normalized.edition || state.edition;
@@ -1067,8 +1184,9 @@ async function pollCloud() {
   state.applyingRemote = false;
 
   setCloudStatus({
-    text: "云端：已收到其他设备更新",
+    text: "已收到其他设备更新",
     kind: "success",
+    mode: remote.mode,
   });
 }
 
@@ -1325,9 +1443,11 @@ els.previewButton.addEventListener(
       buildReport();
 
     els.reportHeadingText.textContent =
-      state.edition === "evening"
-        ? "晚报"
-        : "早报";
+      state.workspaceMode === "zhoubao"
+        ? "周报格式"
+        : state.edition === "evening"
+          ? "晚报"
+          : "早报";
 
     els.reportPanel.hidden = false;
 

@@ -2491,3 +2491,601 @@ body {
     font-size: 11px;
   }
 }
+
+/* ===== v5.0：浅蓝 / 白主色，深蓝辅助 ===== */
+:root {
+  --bg: #f5fbff;
+  --panel: #ffffff;
+  --text: #111820;
+  --muted: #697582;
+  --line: #dcecf7;
+  --soft: #eef8ff;
+  --accent: #004ca0;
+  --accent-soft: #edf8ff;
+  --critical: #004ca0;
+  --light-blue: #62c0fe;
+  --deep-blue: #004ca0;
+  --shadow: 0 8px 28px rgba(0, 76, 160, 0.06);
+}
+
+html,
+body {
+  background: #f5fbff;
+}
+
+body {
+  color: var(--text);
+  background:
+    radial-gradient(circle at 14% -8%, rgba(98, 192, 254, 0.16), transparent 30%),
+    #f5fbff;
+}
+
+.topbar {
+  color: var(--text);
+  background: linear-gradient(110deg, #edf8ff 0%, #ffffff 58%, #f7fcff 100%);
+  border-top: 4px solid var(--light-blue);
+  border-bottom: 1px solid #d7ebf8;
+}
+
+.eyebrow {
+  color: var(--deep-blue);
+}
+
+.subtitle {
+  color: #657486;
+}
+
+.subtitle a {
+  color: var(--deep-blue);
+  border-bottom-color: rgba(0, 76, 160, 0.3);
+}
+
+.status-wrap {
+  color: #526274;
+}
+
+.status-dot {
+  background: var(--light-blue);
+  box-shadow: 0 0 0 4px rgba(98, 192, 254, 0.18);
+}
+
+.updated-card,
+.search-box,
+.cloud-box,
+.filter-shell,
+.news-card,
+.review-help,
+.manual-add-panel,
+.report-panel {
+  border-color: var(--line);
+  box-shadow: var(--shadow);
+}
+
+.search-box:focus-within,
+.manual-news-input:focus,
+.report-text:focus {
+  border-color: var(--light-blue);
+  box-shadow: 0 0 0 3px rgba(98, 192, 254, 0.16);
+}
+
+.search-box svg {
+  stroke: var(--deep-blue);
+}
+
+.action-button,
+.selection-drawer-toggle {
+  background: var(--deep-blue);
+  color: #fff;
+}
+
+.action-button:hover,
+.selection-drawer-toggle:hover {
+  background: #003d82;
+}
+
+.secondary-button,
+.clear-manual-button,
+.cloud-reconnect-button {
+  border-color: #cfe5f4;
+  color: #31536f;
+  background: #fff;
+}
+
+.secondary-button:hover:not(:disabled),
+.clear-manual-button:hover:not(:disabled),
+.cloud-reconnect-button:hover {
+  border-color: var(--light-blue);
+  color: var(--deep-blue);
+  background: #f4fbff;
+}
+
+.edition-toggle {
+  background: #e6f4fd;
+}
+
+.edition-button.active {
+  color: var(--deep-blue);
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 76, 160, 0.12);
+}
+
+.news-item.score-2 .dot,
+.news-item.score-3 .dot {
+  background: var(--deep-blue);
+}
+
+.news-item.score-3 .dot {
+  box-shadow: 0 0 0 3px rgba(98, 192, 254, 0.2);
+}
+
+.news-item.score-2 .news-card,
+.news-item.score-3 .news-card {
+  border-left-color: var(--deep-blue);
+}
+
+.news-item.score-3 .news-card {
+  background: linear-gradient(90deg, #edf8ff, #fff 22%);
+}
+
+.badge.important {
+  color: var(--deep-blue);
+  background: #eaf7ff;
+}
+
+.classify-btn.domestic.selected {
+  border-color: var(--deep-blue);
+  background: var(--deep-blue);
+  color: #fff;
+}
+
+.classify-btn.foreign.selected {
+  border-color: var(--light-blue);
+  background: var(--light-blue);
+  color: #07345e;
+}
+
+.news-item.selected-nav-highlight .news-card {
+  border-color: var(--light-blue) !important;
+  box-shadow: 0 0 0 3px rgba(98, 192, 254, 0.2), var(--shadow) !important;
+}
+
+.selected-navigator {
+  border-color: #cfe5f4;
+  box-shadow: 0 8px 24px rgba(0, 76, 160, 0.1);
+}
+
+.selected-nav-button:hover {
+  background: #edf8ff;
+  color: var(--deep-blue);
+}
+
+.review-topbar {
+  background: linear-gradient(100deg, #eef8ff, #fff 62%);
+  border-top: 4px solid var(--light-blue);
+  border-bottom-color: #d9ebf7;
+}
+
+.review-account-badge {
+  border-color: #cfe5f4;
+  background: #f3faff;
+  color: var(--deep-blue);
+}
+
+.review-group,
+.review-item {
+  border-color: #dbeaf5;
+}
+
+.group-head {
+  background: #eef8ff;
+  border-bottom-color: #dbeaf5;
+}
+
+.node-menu-button {
+  background: #eaf6fe;
+  color: var(--deep-blue);
+}
+
+.node-menu-button:hover,
+.node-menu-button[aria-expanded="true"] {
+  background: #d9f0ff;
+  color: var(--deep-blue);
+}
+
+.global-node-menu {
+  border-color: #cfe5f4;
+  box-shadow: 0 18px 48px rgba(0, 76, 160, 0.17);
+}
+
+.global-menu-action {
+  background: #eef8ff;
+}
+
+.global-menu-action:hover,
+.global-menu-extra-action:hover {
+  background: #dff3ff;
+}
+
+/* 新闻栏与筛选设置 */
+.filter-shell {
+  margin-top: 12px;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.news-view-tabs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  align-content: center;
+  min-width: 132px;
+}
+
+.news-view-tab {
+  min-height: 39px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #d6e8f4;
+  border-radius: 9px;
+  background: #fff;
+  color: #526477;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.news-view-tab.active {
+  border-color: var(--light-blue);
+  background: #eaf7ff;
+  color: var(--deep-blue);
+  font-weight: 700;
+}
+
+.tab-count {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #f0f4f7;
+  color: #677480;
+  font-size: 10px;
+  text-align: center;
+}
+
+.news-view-tab.active .tab-count {
+  background: #fff;
+  color: var(--deep-blue);
+}
+
+.filter-controls {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 180px minmax(260px, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.threshold-control,
+.blocked-terms-control {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #e0edf6;
+  border-radius: 9px;
+  background: #fbfdff;
+}
+
+.filter-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #536475;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.threshold-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.threshold-input-wrap input {
+  width: 76px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #cfe2ef;
+  border-radius: 7px;
+  outline: none;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.threshold-input-wrap input:focus,
+.blocked-terms-control textarea:focus {
+  border-color: var(--light-blue);
+  box-shadow: 0 0 0 3px rgba(98, 192, 254, 0.14);
+}
+
+.threshold-input-wrap span,
+.threshold-control small {
+  color: #758291;
+  font-size: 10px;
+}
+
+.threshold-control small {
+  display: block;
+  margin-top: 5px;
+}
+
+.blocked-terms-control textarea {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  padding: 7px 9px;
+  border: 1px solid #cfe2ef;
+  border-radius: 7px;
+  outline: none;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cloud-status-stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.workspace-mode-label {
+  color: var(--deep-blue);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.cloud-status {
+  font-size: 10px;
+}
+
+/* 时间戳：时间 / 日期 / 星期，各占一行。 */
+.news-time {
+  padding-top: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.news-time-main,
+.news-time-date,
+.news-time-weekday {
+  display: block;
+  white-space: nowrap;
+}
+
+.news-time-main {
+  color: #566777;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.news-time-date {
+  margin-top: 1px;
+  color: #748392;
+  font-size: 10.5px;
+  line-height: 1.2;
+}
+
+.news-time-weekday {
+  color: #8794a1;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+/* 上版修正继续保留：两个手动添加按钮完全等高。 */
+.manual-add-actions {
+  align-items: stretch;
+}
+
+.manual-add-actions > button {
+  min-height: 44px !important;
+  height: 44px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 上版修正继续保留：组标题左上角不露底色缝。 */
+.review-group {
+  overflow: hidden !important;
+  background: #fff;
+  background-clip: padding-box;
+}
+
+.group-head {
+  border-radius: 10px 10px 0 0;
+  background-clip: padding-box;
+}
+
+@media (max-width: 900px) {
+  .filter-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .news-view-tabs {
+    grid-template-columns: 1fr 1fr;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 780px) {
+  .topbar-inner {
+    width: calc(100% - 18px);
+    padding-top: 23px;
+    padding-bottom: 20px;
+  }
+
+  .page,
+  .review-page {
+    width: calc(100% - 12px) !important;
+  }
+
+  h1 {
+    font-size: 27px;
+  }
+
+  .subtitle {
+    margin-top: 8px;
+    font-size: 12px;
+  }
+
+  .simple-toolbar {
+    gap: 7px;
+  }
+
+  .filter-shell {
+    margin-top: 8px;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .filter-controls {
+    grid-template-columns: 118px minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .threshold-control,
+  .blocked-terms-control {
+    padding: 7px;
+  }
+
+  .threshold-input-wrap input {
+    width: 62px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .blocked-terms-control textarea {
+    min-height: 62px;
+    font-size: 11px;
+  }
+
+  .news-item {
+    grid-template-columns: 80px 12px minmax(0, 1fr) !important;
+    min-height: 72px;
+  }
+
+  .news-time {
+    padding-top: 12px;
+    padding-right: 5px;
+  }
+
+  .news-time-main {
+    font-size: 11px;
+  }
+
+  .news-time-date {
+    font-size: 9.5px;
+  }
+
+  .news-time-weekday {
+    font-size: 9px;
+  }
+
+  .rail::before {
+    left: 6px;
+  }
+
+  .dot {
+    left: 2px;
+  }
+
+  .news-card {
+    margin: 6px 0;
+    padding: 11px 11px 10px;
+    border-radius: 10px;
+  }
+
+  .news-content {
+    font-size: 12.5px;
+    line-height: 1.58;
+  }
+
+  .news-footer {
+    margin-top: 8px;
+    gap: 8px;
+    font-size: 10px;
+  }
+
+  .classify-btn {
+    min-height: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+
+  .selection-workbench {
+    left: 6px !important;
+    right: 6px !important;
+  }
+
+  .review-item-content {
+    font-size: 11.5px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .blocked-terms-control textarea {
+    min-height: 72px;
+  }
+
+  .news-view-tab {
+    min-height: 36px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .page,
+  .review-page {
+    width: calc(100% - 8px) !important;
+  }
+
+  .news-item {
+    grid-template-columns: 76px 11px minmax(0, 1fr) !important;
+  }
+
+  .news-time {
+    padding-right: 4px;
+  }
+
+  .news-time-main {
+    font-size: 10.5px;
+  }
+
+  .news-time-date {
+    font-size: 9px;
+  }
+
+  .news-time-weekday {
+    font-size: 8.7px;
+  }
+
+  .news-content {
+    font-size: 12px;
+  }
+}
