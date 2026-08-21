@@ -962,6 +962,10 @@ els.saveFilterPackButton.addEventListener("click", async () => {
     setFilterPackStatus("词包已保存；点击词包可启用", "success");
   }
 
+  // 保存成功后清空主筛选文本框；词包内容仍保存在词包中。
+  state.filters.blockedTerms = "";
+  els.blockedTermsInput.value = "";
+
   render();
   await persistWorkspace();
 });

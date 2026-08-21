@@ -860,28 +860,12 @@ function zhoubaoTitleAndBody(item) {
   const bracket = raw.match(/^【([^】]+)】\s*(.*)$/);
   const bracketTitle = bracket ? normalizeNewsText(bracket[1]) : "";
 
-  // 标题优先级：快讯自身标题 → 正文开头【标题】 → 关联文章标题 → 正文首句兜底。
-  let title = sourceTitle || bracketTitle || articleTitle;
-  let body = bracket ? normalizeNewsText(bracket[2]) : raw;
-
-  if (!title) {
-    const sentence = raw.split(/[。！？!?；;]/)[0].trim();
-    title = sentence.slice(0, 36) || "新闻";
-
-    // 如果正文还有后续内容，首句已作为标题后从正文中移除；
-    // 若整条快讯只有一句，则保留原文作为正文，避免第二行为空。
-    if (raw.startsWith(sentence) && raw.length > sentence.length) {
-      body = raw
-        .slice(sentence.length)
-        .replace(/^[。！？!?；;，,\s]+/, "")
-        .trim();
-    } else {
-      body = raw;
-    }
-  }
+  // 只使用真实存在的标题，不再从正文首句自动生成标题。
+  const title = sourceTitle || bracketTitle || articleTitle;
+  const body = bracket ? normalizeNewsText(bracket[2]) : raw;
 
   return {
-    title: title || "新闻",
+    title,
     body: body || raw || "",
   };
 }
@@ -918,7 +902,8 @@ function flattenBoardNews(board) {
 
 function zhoubaoItemBlock(item) {
   const { title, body } = zhoubaoTitleAndBody(item);
-  return `${title}\n${zhoubaoMonthDay(item)}，${body}`;
+  const datedBody = `${zhoubaoMonthDay(item)}，${body}`;
+  return title ? `${title}\n${datedBody}` : datedBody;
 }
 
 function buildZhoubaoReport() {
