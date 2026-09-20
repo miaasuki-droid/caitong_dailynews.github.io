@@ -928,6 +928,29 @@
     emitStatus("已退出", "neutral");
   }
 
+  async function requestNewsRefresh() {
+    if (!configured()) {
+      return { ok: false, error: "cloud_not_configured" };
+    }
+
+    const password = getPassword();
+    if (!password) {
+      return { ok: false, error: "not_logged_in" };
+    }
+
+    try {
+      return await rpc("request_news_refresh", {
+        p_password: password,
+      });
+    } catch (error) {
+      console.error("Manual news refresh request failed:", error);
+      if (error?.code === "cloud_timeout") {
+        return { ok: false, error: "cloud_timeout" };
+      }
+      return { ok: false, error: "request_failed" };
+    }
+  }
+
   function getPollIntervalMs() {
     const value = Number(CONFIG.pollIntervalMs || 10000);
     return Number.isFinite(value) && value >= 3000 ? value : 10000;
@@ -953,6 +976,7 @@
     loadSharedFilterLibrary,
     saveSharedFilterLibrary,
     refreshSharedFilterLibraryIfNewer,
+    requestNewsRefresh,
     logout,
     getPassword,
     setPassword,

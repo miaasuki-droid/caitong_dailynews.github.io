@@ -64,6 +64,8 @@ const els = {
   filterPackList: document.getElementById("filterPackList"),
   filterPackStatus: document.getElementById("filterPackStatus"),
   historyLoadStatus: document.getElementById("historyLoadStatus"),
+  manualRefreshButton: document.getElementById("manualRefreshButton"),
+  manualRefreshStatus: document.getElementById("manualRefreshStatus"),
 };
 
 let filterSaveTimer = null;
@@ -887,6 +889,96 @@ async function loadNewsData() {
   state.data = data;
 }
 
+function setManualRefreshStatus(text, kind = "neutral") {
+  if (!els.manualRefreshStatus) return;
+  els.manualRefreshStatus.textContent = text;
+  els.manualRefreshStatus.dataset.kind = kind;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForManualRefresh(previousGeneratedAt) {
+  const startedAt = Date.now();
+  const timeoutMs = 4 * 60 * 1000;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await sleep(8000);
+
+    try {
+      const res = await fetch(`./data/latest.json?t=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      if (data.error) continue;
+
+      const nextGeneratedAt = String(data.generated_at || "");
+      if (
+        nextGeneratedAt &&
+        nextGeneratedAt !== String(previousGeneratedAt || "")
+      ) {
+        state.data = data;
+        state.historyWindowHours = 12;
+        render();
+        setManualRefreshStatus(
+          `更新完成：${formatUpdated(nextGeneratedAt)}`,
+          "success"
+        );
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  setManualRefreshStatus(
+    "后台仍可能在运行；稍后刷新页面查看最新时间",
+    "error"
+  );
+  return false;
+}
+
+async function runManualRefresh() {
+  if (!els.manualRefreshButton || els.manualRefreshButton.disabled) return;
+
+  const previousGeneratedAt = state.data?.generated_at || "";
+  const oldText = els.manualRefreshButton.textContent;
+  els.manualRefreshButton.disabled = true;
+  els.manualRefreshButton.textContent = "正在提交…";
+  setManualRefreshStatus("正在提交更新请求…");
+
+  try {
+    const result = await window.WSCNCloud.requestNewsRefresh();
+
+    if (!result?.ok) {
+      if (result?.error === "cooldown") {
+        const seconds = Math.max(1, Number(result.retry_after_seconds || 0));
+        setManualRefreshStatus(
+          `刚刚已经更新过，请约 ${seconds} 秒后再试`,
+          "error"
+        );
+      } else if (result?.error === "github_token_not_configured") {
+        setManualRefreshStatus("手动更新尚未完成 GitHub Token 配置", "error");
+      } else if (result?.error === "invalid_password") {
+        setManualRefreshStatus("工作区口令失效，请退出后重新进入", "error");
+      } else if (result?.error === "cloud_timeout") {
+        setManualRefreshStatus("云端响应超时，请稍后再试", "error");
+      } else {
+        setManualRefreshStatus("更新请求提交失败，请稍后再试", "error");
+      }
+      return;
+    }
+
+    els.manualRefreshButton.textContent = "后台更新中…";
+    setManualRefreshStatus("请求已提交，正在抓取并部署；请不要重复点击");
+    await waitForManualRefresh(previousGeneratedAt);
+  } finally {
+    els.manualRefreshButton.disabled = false;
+    els.manualRefreshButton.textContent = oldText;
+  }
+}
+
 async function initialLoad() {
   try {
     window.WSCNCloud.setStatusListener(setCloudStatus);
@@ -1170,6 +1262,10 @@ els.cloudLogoutButton.addEventListener("click", () => {
   window.location.replace(`./index.html?login=${Date.now()}`);
 });
 
+if (els.manualRefreshButton) {
+  els.manualRefreshButton.addEventListener("click", runManualRefresh);
+}
+
 let historyScrollTicking = false;
 window.addEventListener(
   "scroll",
@@ -1188,10 +1284,5 @@ window.addEventListener(
 
 initialLoad();
 
-setInterval(() => {
-  loadNewsData()
-    .then(() => render())
-    .catch(() => {});
-}, 60_000);
 
 setInterval(pollCloud, window.WSCNCloud.getPollIntervalMs());

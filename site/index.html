@@ -7,6 +7,81 @@
   <title>今日全球快讯</title>
   <meta name="description" content="财通固收早晚报快讯筛选工具" />
   <link rel="stylesheet" href="./styles.css?v=531" />
+
+  <style>
+    .manual-refresh-panel {
+      margin: 16px 0 18px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      border: 1px solid #e1e4e8;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 3px 14px rgba(20,24,31,.035);
+    }
+    .manual-refresh-info {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .manual-refresh-info .label { margin-bottom: 0; }
+    .manual-refresh-info strong {
+      color: #17191d;
+      font-size: 16px;
+    }
+    .manual-refresh-status {
+      color: #777d86;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .manual-refresh-status[data-kind="success"] { color: #17663a; }
+    .manual-refresh-status[data-kind="error"] { color: #b42318; }
+    .manual-refresh-action {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .manual-refresh-button {
+      min-width: 150px;
+      min-height: 46px;
+      padding: 0 22px;
+      border: 0;
+      border-radius: 10px;
+      background: #004ca0;
+      color: #fff;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .manual-refresh-button:hover:not(:disabled) { background: #003f86; }
+    .manual-refresh-button:disabled {
+      cursor: default;
+      opacity: .56;
+    }
+    .manual-refresh-warning {
+      margin: 0;
+      color: #c51f1a;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+    @media (max-width: 780px) {
+      .manual-refresh-panel {
+        margin-top: 12px;
+        padding: 14px;
+        align-items: stretch;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .manual-refresh-action { width: 100%; }
+      .manual-refresh-button { width: 100%; min-height: 50px; }
+    }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -46,6 +121,18 @@
           </div>
           <button id="cloudLogoutButton" class="cloud-reconnect-button" type="button">退出</button>
         </div>
+      </div>
+    </section>
+
+    <section class="manual-refresh-panel" aria-label="手动更新新闻">
+      <div class="manual-refresh-info">
+        <span class="label">新闻数据</span>
+        <strong>手动更新</strong>
+        <span id="manualRefreshStatus" class="manual-refresh-status">当前不会自动抓取新闻</span>
+      </div>
+      <div class="manual-refresh-action">
+        <button id="manualRefreshButton" class="manual-refresh-button" type="button">更新新闻</button>
+        <p class="manual-refresh-warning">不要连续更新！！！</p>
       </div>
     </section>
 
@@ -148,7 +235,7 @@
   </div>
 
   <script src="./cloud-config.js?v=520"></script>
-  <script src="./cloud.js?v=540"></script>
-  <script src="./app.js?v=540"></script>
+  <script src="./cloud.js?v=550"></script>
+  <script src="./app.js?v=550"></script>
 </body>
 </html>
