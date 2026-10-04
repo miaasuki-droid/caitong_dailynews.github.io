@@ -1,7 +1,10 @@
-name: Manual Refresh WSCN News
+name: Manual + Daily Refresh WSCN News
 
 on:
   workflow_dispatch:
+  schedule:
+    # Beijing 00:00 = UTC 16:00 of the previous calendar day.
+    - cron: "0 16 * * *"
 
 permissions:
   contents: write
@@ -39,7 +42,7 @@ jobs:
             wscn-history-${{ runner.os }}-
 
       - name: Fetch latest WSCN news
-        run: python scripts/fetch_wscn.py
+        run: python scripts/manual_fetch_wscn.py
 
       - name: Persist refreshed news in repository
         run: |
