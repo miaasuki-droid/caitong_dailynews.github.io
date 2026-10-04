@@ -42,6 +42,11 @@ jobs:
             wscn-history-${{ runner.os }}-
 
       - name: Fetch latest WSCN news
+        env:
+          # Website button and GitHub "Run workflow" both use workflow_dispatch:
+          # backfill the latest 7 days so missed manual-refresh days do not create gaps.
+          # The daily scheduled run only needs the latest 24 hours.
+          WSCN_FETCH_HOURS: ${{ github.event_name == 'workflow_dispatch' && '168' || '24' }}
         run: python scripts/manual_fetch_wscn.py
 
       - name: Persist refreshed news in repository
